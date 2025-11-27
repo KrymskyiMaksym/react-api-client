@@ -82,8 +82,14 @@ export type UseMutationResult<TData, TVariables> = {
 
 // HTTP Client abstraction
 export interface IHttpClient {
-  get<T>(url: string, config?: RequestConfig): Promise<T>;
-  request<T>(url: string, config: RequestConfig): Promise<T>;
+  get<T>(
+    url: string,
+    config?: { params?: Record<string, unknown> },
+  ): Promise<T>;
+  request<T>(
+    url: string,
+    config: { method?: string; data?: Record<string, unknown> },
+  ): Promise<T>;
 }
 
 // API Client configuration

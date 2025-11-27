@@ -35,7 +35,10 @@ export async function executeRequest<
     const requestConfig = { ...fetchConfig };
     let response: ResponseType;
 
-    if (requestConfig.method?.toUpperCase() === 'GET' || !requestConfig.method) {
+    if (
+      requestConfig.method?.toUpperCase() === 'GET' ||
+      !requestConfig.method
+    ) {
       response = await config.httpClient.get<ResponseType>(url, {
         params: {
           ...requestConfig.requestParams,
