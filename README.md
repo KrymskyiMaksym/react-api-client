@@ -1,0 +1,303 @@
+# @yourname/react-api-client
+
+A lightweight, type-safe API client for React and React Native with built-in hooks for queries, mutations, and pagination.
+
+## Features
+
+- 🎯 **Type-Safe**: Full TypeScript support with generic types
+- 🪝 **React Hooks**: Built-in hooks for easy data fetching
+- 📦 **Lightweight**: Zero dependencies (except React)
+- 🔄 **Flexible**: Works with any HTTP client (fetch, axios, etc.)
+- 🚀 **Modern**: ESM and CJS support
+- 🎨 **Customizable**: Inject your own HTTP client and error handlers
+
+## Installation
+
+```bash
+npm install @yourname/react-api-client
+# or
+yarn add @yourname/react-api-client
+# or
+pnpm add @yourname/react-api-client
+```
+
+## Quick Start
+
+### 1. Configure the API Client
+
+First, configure the global API client with your HTTP client and error handlers:
+
+```typescript
+import { configureApiClient } from '@yourname/react-api-client';
+import { router } from 'expo-router'; // or your router
+
+// Create your HTTP client instance
+const httpClient = {
+  async get(url, config) {
+    const response = await fetch(url);
+    return response.json();
+  },
+  async request(url, config) {
+    const response = await fetch(url, {
+      method: config.method,
+      body: JSON.stringify(config.data),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return response.json();
+  },
+};
+
+// Configure once at app startup
+configureApiClient({
+  httpClient,
+  onUnauthorized: () => router.replace('/login'),
+});
+```
+
+### 2. Define Your API Endpoints
+
+```typescript
+import apiClient, { apiMutation, apiPaginate } from '@yourname/react-api-client';
+
+// Types
+type User = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+type CreateUserRequest = {
+  name: string;
+  email: string;
+};
+
+// GET endpoint
+export const userApi = apiClient<User, { id: string }>('/api/users/:id');
+
+// POST endpoint
+export const createUserApi = apiMutation<User, CreateUserRequest>(
+  '/api/users',
+  { method: 'POST' }
+);
+
+// Paginated endpoint
+export const usersListApi = apiPaginate<
+  { data: User[]; total: number },
+  User[]
+>('/api/users');
+```
+
+### 3. Use in Components
+
+#### Query (GET)
+
+```typescript
+function UserProfile({ userId }: { userId: string }) {
+  const { data, isLoading, error, refetch } = userApi.useFetch(
+    { id: userId },
+    {
+      onSuccess: (data) => console.log('User loaded:', data),
+      onError: (error) => console.error('Error:', error),
+    }
+  );
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <ErrorMessage error={error} />;
+
+  return (
+    <div>
+      <h1>{data?.name}</h1>
+      <button onClick={refetch}>Refresh</button>
+    </div>
+  );
+}
+```
+
+#### Mutation (POST/PUT/PATCH/DELETE)
+
+```typescript
+function CreateUserForm() {
+  const { mutate, isLoading, isSuccess, error } = createUserApi.useMutation({
+    onSuccess: (data) => {
+      console.log('User created:', data);
+      // Navigate or update UI
+    },
+    onError: (error) => {
+      console.error('Failed to create user:', error);
+    },
+  });
+
+  const handleSubmit = (values: CreateUserRequest) => {
+    mutate(values);
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {/* form fields */}
+      <button type="submit" disabled={isLoading}>
+        {isLoading ? 'Creating...' : 'Create User'}
+      </button>
+      {isSuccess && <p>User created successfully!</p>}
+      {error && <p>Error: {error.message}</p>}
+    </form>
+  );
+}
+```
+
+#### Pagination
+
+```typescript
+function UsersList() {
+  const {
+    data,
+    isLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = usersListApi.usePaginate();
+
+  return (
+    <div>
+      {data.map(user => (
+        <UserCard key={user.id} user={user} />
+      ))}
+
+      {hasNextPage && (
+        <button onClick={fetchNextPage} disabled={isFetchingNextPage}>
+          {isFetchingNextPage ? 'Loading...' : 'Load More'}
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
+## API Reference
+
+### `configureApiClient(config)`
+
+Configure the global API client. Must be called before using any API functions.
+
+```typescript
+type ApiClientConfig = {
+  httpClient: IHttpClient;
+  onUnauthorized?: () => void | Promise<void>;
+};
+```
+
+### `apiClient<ResponseType, RequestParamsType>(endpoint, config)`
+
+Creates a query client for GET requests.
+
+**Returns:**
+- `fetch(params)` - Async function to fetch data
+- `useFetch(params, options)` - React hook for data fetching
+
+### `apiMutation<ResponseType, RequestParamsType>(endpoint, config)`
+
+Creates a mutation client for POST/PUT/PATCH/DELETE requests.
+
+**Returns:**
+- `mutate(params)` - Async function to execute mutation
+- `useMutation(options)` - React hook for mutations
+
+### `apiPaginate<ResponseType, DataArrayType>(endpoint, config, options)`
+
+Creates a paginated query client.
+
+**Returns:**
+- `usePaginate(params, options)` - React hook for paginated data
+
+## Advanced Usage
+
+### Dynamic Endpoints
+
+```typescript
+const userApi = apiClient<User, { id: string }>(
+  (params) => `/api/users/${params.id}`
+);
+```
+
+### Custom Data Extractors for Pagination
+
+```typescript
+const usersApi = apiPaginate<
+  { users: User[]; count: number },
+  User[]
+>(
+  '/api/users',
+  { method: 'GET' },
+  {
+    dataExtractor: (response) => response.users,
+    totalExtractor: (response) => response.count,
+  }
+);
+```
+
+### Imperative API Calls
+
+```typescript
+// Without hooks
+const response = await userApi.fetch({ id: '123' });
+if (response.status) {
+  console.log('Success:', response);
+} else {
+  console.error('Error:', response.message);
+}
+```
+
+## HTTP Client Interface
+
+Your HTTP client must implement this interface:
+
+```typescript
+interface IHttpClient {
+  get<T>(url: string, config?: RequestConfig): Promise<T>;
+  request<T>(url: string, config: RequestConfig): Promise<T>;
+}
+```
+
+### Example with Axios
+
+```typescript
+import axios from 'axios';
+
+const httpClient = {
+  get: (url, config) => axios.get(url, config).then(res => res.data),
+  request: (url, config) => axios(url, config).then(res => res.data),
+};
+```
+
+### Example with Fetch
+
+```typescript
+const httpClient = {
+  async get(url, config) {
+    const params = new URLSearchParams(config?.params);
+    const response = await fetch(`${url}?${params}`);
+    if (!response.ok) throw new Error('Request failed');
+    return response.json();
+  },
+  async request(url, config) {
+    const response = await fetch(url, {
+      method: config.method,
+      headers: { 'Content-Type': 'application/json' },
+      body: config.data ? JSON.stringify(config.data) : undefined,
+    });
+    if (!response.ok) throw new Error('Request failed');
+    return response.json();
+  },
+};
+```
+
+## License
+
+MIT
+
+## Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request.
+
+## Support
+
+For issues and questions, please use [GitHub Issues](https://github.com/yourname/react-api-client/issues).
