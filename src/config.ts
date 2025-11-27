@@ -7,7 +7,7 @@ let globalConfig: ApiClientConfig | null = null;
  * @param config - API client configuration
  *
  * @example
- * import { configureApiClient } from '@yourname/react-api-client';
+ * import { configureApiClient } from '@krymskyimaksym/react-api-client';
  * import { router } from 'expo-router';
  *
  * configureApiClient({

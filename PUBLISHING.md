@@ -8,12 +8,12 @@
 
 ```json
 {
-  "name": "@yourname/react-api-client",  // Замените на ваше npm org/username
+  "name": "@krymskyimaksym/react-api-client",  // Замените на ваше npm org/username
   "version": "1.0.0",                     // Версия пакета
   "author": "Your Name <your.email@example.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourname/react-api-client.git"  // Ваш GitHub репозиторий
+    "url": "https://github.com/krymskyimaksym/react-api-client.git"  // Ваш GitHub репозиторий
   }
 }
 ```
@@ -30,7 +30,7 @@
 cd /Users/admin/Projects/react-native/react-api-client
 
 # Добавьте remote origin
-git remote add origin https://github.com/yourname/react-api-client.git
+git remote add origin https://github.com/krymskyimaksym/react-api-client.git
 
 # Добавьте все файлы
 git add .
@@ -55,7 +55,7 @@ npm login
 ```
 
 #### Создайте NPM организацию (опционально)
-Если используете scoped package (@yourname/package):
+Если используете scoped package (@krymskyimaksym/package):
 1. Перейдите на https://www.npmjs.com/org/create
 2. Создайте организацию с вашим username
 
@@ -122,7 +122,7 @@ git push --tags
 
 ### 3. Создайте GitHub Release
 
-1. Перейдите на https://github.com/yourname/react-api-client/releases/new
+1. Перейдите на https://github.com/krymskyimaksym/react-api-client/releases/new
 2. Выберите тег версии (например, v1.0.1)
 3. Заполните описание изменений
 4. Нажмите "Publish release"
@@ -132,7 +132,7 @@ git push --tags
 **Важно:** Для автоматической публикации нужно добавить NPM_TOKEN в секреты GitHub:
 
 1. Создайте NPM Access Token:
-   - Перейдите на https://www.npmjs.com/settings/yourname/tokens
+   - Перейдите на https://www.npmjs.com/settings/krymskyimaksym/tokens
    - Нажмите "Generate New Token" -> "Automation"
    - Скопируйте токен
 
@@ -147,17 +147,17 @@ git push --tags
 После публикации пакет можно установить:
 
 ```bash
-npm install @yourname/react-api-client
+npm install @krymskyimaksym/react-api-client
 ```
 
 ## Проверка пакета
 
 ```bash
 # Посмотрите информацию о пакете
-npm info @yourname/react-api-client
+npm info @krymskyimaksym/react-api-client
 
 # Посмотрите все версии
-npm view @yourname/react-api-client versions
+npm view @krymskyimaksym/react-api-client versions
 ```
 
 ## Troubleshooting

@@ -7,7 +7,7 @@
 После публикации на NPM:
 
 ```bash
-yarn add @yourname/react-api-client
+yarn add @krymskyimaksym/react-api-client
 ```
 
 Или для локального тестирования:
@@ -17,7 +17,7 @@ cd /Users/admin/Projects/react-native/react-api-client
 npm link
 
 cd /Users/admin/Projects/react-native/totax-control
-npm link @yourname/react-api-client
+npm link @krymskyimaksym/react-api-client
 ```
 
 ## 2. Настройка HTTP Client
@@ -27,7 +27,7 @@ npm link @yourname/react-api-client
 ```typescript
 import { STORAGE_ACCESS_TOKEN, STORAGE_LOCALE } from '@/constants/storage-keys';
 import { getItem } from '@/lib/storage';
-import type { IHttpClient } from '@yourname/react-api-client';
+import type { IHttpClient } from '@krymskyimaksym/react-api-client';
 
 type HttpClientConfig = {
   baseURL: string;
@@ -166,7 +166,7 @@ export default http;
 Обновите файл `app/_layout.tsx` для конфигурации:
 
 ```typescript
-import { configureApiClient } from '@yourname/react-api-client';
+import { configureApiClient } from '@krymskyimaksym/react-api-client';
 import { router } from 'expo-router';
 import http from '@/lib/fetch/http-client-adapter';
 
@@ -192,7 +192,7 @@ export default function RootLayout() {
 Файл `lib/api/auth.api.ts`:
 
 ```typescript
-import apiClient, { apiMutation } from '@yourname/react-api-client';
+import apiClient, { apiMutation } from '@krymskyimaksym/react-api-client';
 
 // ... типы остаются те же
 
@@ -208,7 +208,7 @@ const loginApi = apiMutation<LoginResponse, LoginRequest, AuthErrorResponse>(
 Файл `lib/api/orders.api.ts`:
 
 ```typescript
-import apiClient, { apiMutation, apiPaginate } from '@yourname/react-api-client';
+import apiClient, { apiMutation, apiPaginate } from '@krymskyimaksym/react-api-client';
 
 // ... код остается практически без изменений
 ```
@@ -239,7 +239,7 @@ import apiClient from '@/lib/fetch/api-client';
 
 **Стало:**
 ```typescript
-import apiClient from '@yourname/react-api-client';
+import apiClient from '@krymskyimaksym/react-api-client';
 ```
 
 ## Преимущества миграции

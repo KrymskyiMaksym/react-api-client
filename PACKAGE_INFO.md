@@ -1,4 +1,4 @@
-# @yourname/react-api-client - Package Info
+# @krymskyimaksym/react-api-client - Package Info
 
 ## 📦 Package Structure
 
@@ -120,7 +120,7 @@ npm publish --access public
 
 ```typescript
 // 1. Configure once at app startup
-import { configureApiClient } from '@yourname/react-api-client';
+import { configureApiClient } from '@krymskyimaksym/react-api-client';
 
 configureApiClient({
   httpClient: myHttpClient,
@@ -128,7 +128,7 @@ configureApiClient({
 });
 
 // 2. Define API
-import apiClient from '@yourname/react-api-client';
+import apiClient from '@krymskyimaksym/react-api-client';
 
 const userApi = apiClient<User, { id: string }>('/api/users/:id');
 
@@ -170,6 +170,6 @@ MIT - see LICENSE file
 
 ## 🔗 Links
 
-- NPM: https://www.npmjs.com/package/@yourname/react-api-client
-- GitHub: https://github.com/yourname/react-api-client
-- Issues: https://github.com/yourname/react-api-client/issues
+- NPM: https://www.npmjs.com/package/@krymskyimaksym/react-api-client
+- GitHub: https://github.com/krymskyimaksym/react-api-client
+- Issues: https://github.com/krymskyimaksym/react-api-client/issues

@@ -25,15 +25,15 @@ cd /Users/admin/Projects/react-native/react-api-client
 
 ```json
 {
-  "name": "@yourname/react-api-client",  // ← ЗАМЕНИТЕ на ваш npm username/org
+  "name": "@krymskyimaksym/react-api-client",  // ← ЗАМЕНИТЕ на ваш npm username/org
   "author": "Your Name <your.email@example.com>",  // ← ЗАМЕНИТЕ
   "repository": {
-    "url": "https://github.com/yourname/react-api-client.git"  // ← ЗАМЕНИТЕ
+    "url": "https://github.com/krymskyimaksym/react-api-client.git"  // ← ЗАМЕНИТЕ
   },
   "bugs": {
-    "url": "https://github.com/yourname/react-api-client/issues"  // ← ЗАМЕНИТЕ
+    "url": "https://github.com/krymskyimaksym/react-api-client/issues"  // ← ЗАМЕНИТЕ
   },
-  "homepage": "https://github.com/yourname/react-api-client#readme"  // ← ЗАМЕНИТЕ
+  "homepage": "https://github.com/krymskyimaksym/react-api-client#readme"  // ← ЗАМЕНИТЕ
 }
 ```
 
@@ -57,8 +57,8 @@ git commit -m "Update package info"
 ```bash
 cd /Users/admin/Projects/react-native/react-api-client
 
-# Добавьте remote (замените yourname на ваш GitHub username)
-git remote add origin https://github.com/yourname/react-api-client.git
+# Добавьте remote (замените krymskyimaksym на ваш GitHub username)
+git remote add origin https://github.com/krymskyimaksym/react-api-client.git
 
 # Push код
 git push -u origin main
@@ -93,7 +93,7 @@ ls -la dist/
 npm login
 ```
 
-#### Если используете scoped package (@yourname/...):
+#### Если используете scoped package (@krymskyimaksym/...):
 Создайте организацию на https://www.npmjs.com/org/create
 
 ### 6. Опубликуйте на NPM
@@ -101,7 +101,7 @@ npm login
 ```bash
 cd /Users/admin/Projects/react-native/react-api-client
 
-# Для scoped package (@yourname/...)
+# Для scoped package (@krymskyimaksym/...)
 npm publish --access public
 
 # Для обычного package (react-api-client)
@@ -116,7 +116,7 @@ npm publish
    - Скопируйте токен
 
 2. Добавьте токен в GitHub Secrets:
-   - https://github.com/yourname/react-api-client/settings/secrets/actions
+   - https://github.com/krymskyimaksym/react-api-client/settings/secrets/actions
    - "New repository secret"
    - Name: `NPM_TOKEN`
    - Value: ваш токен
@@ -127,10 +127,10 @@ npm publish
 
 ```bash
 # Посмотрите информацию
-npm info @yourname/react-api-client
+npm info @krymskyimaksym/react-api-client
 
 # Установите в тестовом проекте
-npm install @yourname/react-api-client
+npm install @krymskyimaksym/react-api-client
 ```
 
 ## 🎉 Готово!
@@ -139,7 +139,7 @@ npm install @yourname/react-api-client
 
 1. **Использовать в своих проектах:**
    ```bash
-   npm install @yourname/react-api-client
+   npm install @krymskyimaksym/react-api-client
    ```
 
 2. **Интегрировать в Totax Control:**
@@ -165,4 +165,4 @@ npm install @yourname/react-api-client
 Если что-то не получается:
 1. Проверьте `PUBLISHING.md` для troubleshooting
 2. Проверьте логи GitHub Actions (если настроена CI/CD)
-3. Проверьте статус на https://www.npmjs.com/package/@yourname/react-api-client
+3. Проверьте статус на https://www.npmjs.com/package/@krymskyimaksym/react-api-client

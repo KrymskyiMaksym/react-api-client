@@ -1,5 +1,5 @@
 {
-  "name": "@yourname/react-api-client",
+  "name": "@krymskyimaksym/react-api-client",
   "version": "1.0.0",
   "description": "A lightweight, type-safe API client for React and React Native with built-in hooks",
   "main": "./dist/index.js",
@@ -39,16 +39,16 @@
     "pagination",
     "mutation"
   ],
-  "author": "Your Name <your.email@example.com>",
+  "author": "Krymskyi Maksym <krimskiymaxim@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourname/react-api-client.git"
+    "url": "https://github.com/krymskyimaksym/react-api-client.git"
   },
   "bugs": {
-    "url": "https://github.com/yourname/react-api-client/issues"
+    "url": "https://github.com/krymskyimaksym/react-api-client/issues"
   },
-  "homepage": "https://github.com/yourname/react-api-client#readme",
+  "homepage": "https://github.com/krymskyimaksym/react-api-client#readme",
   "peerDependencies": {
     "react": ">=16.8.0"
   },

@@ -1,4 +1,4 @@
-# @yourname/react-api-client
+# @krymskyimaksym/react-api-client
 
 A lightweight, type-safe API client for React and React Native with built-in hooks for queries, mutations, and pagination.
 
@@ -14,11 +14,11 @@ A lightweight, type-safe API client for React and React Native with built-in hoo
 ## Installation
 
 ```bash
-npm install @yourname/react-api-client
+npm install @krymskyimaksym/react-api-client
 # or
-yarn add @yourname/react-api-client
+yarn add @krymskyimaksym/react-api-client
 # or
-pnpm add @yourname/react-api-client
+pnpm add @krymskyimaksym/react-api-client
 ```
 
 ## Quick Start
@@ -28,7 +28,7 @@ pnpm add @yourname/react-api-client
 First, configure the global API client with your HTTP client and error handlers:
 
 ```typescript
-import { configureApiClient } from '@yourname/react-api-client';
+import { configureApiClient } from '@krymskyimaksym/react-api-client';
 import { router } from 'expo-router'; // or your router
 
 // Create your HTTP client instance
@@ -57,7 +57,7 @@ configureApiClient({
 ### 2. Define Your API Endpoints
 
 ```typescript
-import apiClient, { apiMutation, apiPaginate } from '@yourname/react-api-client';
+import apiClient, { apiMutation, apiPaginate } from '@krymskyimaksym/react-api-client';
 
 // Types
 type User = {
@@ -300,4 +300,4 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 ## Support
 
-For issues and questions, please use [GitHub Issues](https://github.com/yourname/react-api-client/issues).
+For issues and questions, please use [GitHub Issues](https://github.com/krymskyimaksym/react-api-client/issues).
