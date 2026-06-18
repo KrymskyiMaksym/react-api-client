@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { executeRequest, handleResponse } from '../utils';
+import { focusManager } from '../query/focus-manager';
+import { onlineManager } from '../query/online-manager';
+import { hashQueryKey, type QueryKey } from '../query/key';
+import { getQueryClient } from '../query/client';
+import { buildEndpoint, executeRequest, handleResponse } from '../utils';
 
 import type {
   RequestConfig,
@@ -10,7 +14,14 @@ import type {
 } from '../types/index';
 
 /**
- * Hook for fetching data (GET requests)
+ * Hook for fetching data (GET requests).
+ *
+ * Поверх QueryCache: одинаковые queryKey разделяют один результат и один
+ * inflight-promise. Поддерживает staleTime, refetchOnFocus,
+ * pollingInterval, select.
+ *
+ * Возвращаемый тип { data, isLoading, isRefetching, error, refetch }
+ * сохранён 1-в-1 с предыдущей версией — старые потребители продолжают работать.
  */
 export function createUseFetch<
   ResponseType,
@@ -22,99 +33,191 @@ export function createUseFetch<
 ) {
   type RT = ResponseWrapper<ResponseType, ErrorResponseType>;
 
-  return (
+  return <TSelected = RT>(
     params?: RequestParamsType,
-    options: UseFetchOptions<RT> = {},
-  ): UseFetchResult<RT> => {
+    options: UseFetchOptions<RT, TSelected> = {},
+  ): UseFetchResult<TSelected> => {
     const {
       enabled = true,
       refetchOnMount = true,
+      refetchOnFocus = false,
+      refetchOnAppActive = false,
+      refetchOnReconnect = false,
+      staleTime = 0,
+      gcTime,
+      pollingInterval,
+      queryKey: customKey,
+      select,
       onSuccess,
       onError,
     } = options;
 
-    const [data, setData] = useState<RT | null>(null);
-    const [isLoading, setIsLoading] = useState(enabled && refetchOnMount);
-    const [isRefetching, setIsRefetching] = useState(false);
-    const [error, setError] = useState<Error | null>(null);
-    const isMountedRef = useRef(true);
-
-    // Serialize params to avoid unnecessary re-renders
     const serializedParams = useMemo(
-      () => (params ? JSON.stringify(params) : null),
+      () => (params === undefined ? null : JSON.stringify(params)),
       [params],
     );
 
-    const fetchData = useCallback(
-      async (isRefetch = false) => {
-        if (!enabled) return;
+    const queryKey = useMemo<QueryKey>(() => {
+      if (customKey) return customKey;
+      const endpointId =
+        typeof endpoint === 'function'
+          ? buildEndpoint<RequestParamsType>(endpoint, params)
+          : endpoint;
+      return ['__endpoint__', endpointId, params ?? null];
+      // params уже учтён через serializedParams ниже
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [customKey ? hashQueryKey(customKey) : null, serializedParams]);
 
+    const client = getQueryClient();
+    const cache = client.cache;
+
+    // queryFn — стабилен относительно serializedParams, не пересоздаём
+    // на каждый рендер.
+    const queryFn = useCallback(() => {
+      const parsedParams = serializedParams
+        ? (JSON.parse(serializedParams) as RequestParamsType)
+        : undefined;
+      return executeRequest<
+        ResponseType,
+        RequestParamsType,
+        ErrorResponseType
+      >(endpoint, fetchConfig, parsedParams);
+    }, [serializedParams]);
+
+    const initialState = cache.getState<RT>(queryKey);
+    const [, forceRender] = useState(0);
+    const rerender = useCallback(() => forceRender(v => v + 1), []);
+
+    // Подписка на изменения ключа.
+    useEffect(() => {
+      if (!enabled) return;
+      const unsub = cache.subscribe(queryKey, rerender);
+      return unsub;
+    }, [cache, enabled, hashQueryKey(queryKey), rerender]);
+
+    // Триггер запроса при mount / смене ключа / stale-инвалидации.
+    const lastNotifiedRef = useRef<{
+      success?: RT;
+      errorHash?: string;
+    }>({});
+
+    const runFetch = useCallback(
+      async (force: boolean) => {
         try {
-          if (isRefetch) {
-            setIsRefetching(true);
-          } else {
-            setIsLoading(true);
-          }
-          setError(null);
-
-          const parsedParams = serializedParams
-            ? JSON.parse(serializedParams)
-            : undefined;
-
-          const result = await executeRequest<
-            ResponseType,
-            RequestParamsType,
-            ErrorResponseType
-          >(endpoint, fetchConfig, parsedParams);
-
-          if (isMountedRef.current) {
-            setData(result);
+          const data = await cache.fetch(queryKey, queryFn, {
+            staleTime,
+            gcTime,
+            force,
+          });
+          // onSuccess / onError — на основе бизнес-статуса
+          if (lastNotifiedRef.current.success !== data) {
+            lastNotifiedRef.current.success = data;
             handleResponse<ResponseType, ErrorResponseType>(
-              result,
+              data,
               onSuccess,
               onError,
             );
           }
         } catch (err) {
-          const error = err as Error;
-          if (isMountedRef.current) {
-            setError(error);
-            if (onError) {
-              onError(error);
-            }
-          }
-        } finally {
-          if (isMountedRef.current) {
-            if (isRefetch) {
-              setIsRefetching(false);
-            } else {
-              setIsLoading(false);
-            }
+          const e = err as Error;
+          const hash = `${e.name}:${e.message}`;
+          if (lastNotifiedRef.current.errorHash !== hash) {
+            lastNotifiedRef.current.errorHash = hash;
+            onError?.(e);
           }
         }
       },
-      [enabled, serializedParams, onSuccess, onError],
+      [cache, hashQueryKey(queryKey), queryFn, staleTime, gcTime, onSuccess, onError],
     );
 
-    const refetch = useCallback(async () => {
-      await fetchData(true);
-    }, [fetchData]);
-
     useEffect(() => {
-      isMountedRef.current = true;
+      if (!enabled || !refetchOnMount) return;
+      void runFetch(false);
+    }, [enabled, refetchOnMount, runFetch]);
 
-      if (enabled && refetchOnMount) {
-        void fetchData(false);
-      }
+    // Реакция на внешний invalidate: подписчик уже получил notify
+    // (rerender), здесь смотрим isStale в кэше и догоняем запросом.
+    const stateForEffect = cache.getState<RT>(queryKey);
+    const isStale = stateForEffect?.isStale ?? false;
+    const hasFetchedData = stateForEffect?.data !== undefined;
+    useEffect(() => {
+      if (!enabled) return;
+      if (isStale && hasFetchedData) void runFetch(true);
+    }, [enabled, isStale, hasFetchedData, runFetch]);
 
-      return () => {
-        isMountedRef.current = false;
+    // refetchOnFocus / refetchOnAppActive — обе настройки висят на одном
+    // focusManager (RN AppState → focusManager.setFocused). Если хоть одна
+    // включена — подписываемся.
+    useEffect(() => {
+      if (!enabled) return;
+      if (!refetchOnFocus && !refetchOnAppActive) return;
+      const unsub = focusManager.subscribe(focused => {
+        if (focused) void runFetch(false);
+      });
+      return unsub;
+    }, [enabled, refetchOnFocus, refetchOnAppActive, runFetch]);
+
+    // refetchOnReconnect: подписываемся на onlineManager.
+    useEffect(() => {
+      if (!enabled || !refetchOnReconnect) return;
+      const unsub = onlineManager.subscribe(online => {
+        if (online) void runFetch(false);
+      });
+      return unsub;
+    }, [enabled, refetchOnReconnect, runFetch]);
+
+    // Поллинг с авто-паузой при !focused.
+    useEffect(() => {
+      if (!enabled || !pollingInterval || pollingInterval <= 0) return;
+      let timer: ReturnType<typeof setInterval> | null = null;
+
+      const start = () => {
+        if (timer) return;
+        timer = setInterval(() => {
+          if (focusManager.isFocused()) void runFetch(true);
+        }, pollingInterval);
       };
-    }, [enabled, refetchOnMount, fetchData]);
+      const stop = () => {
+        if (timer) clearInterval(timer);
+        timer = null;
+      };
+
+      start();
+      const unsub = focusManager.subscribe(focused => {
+        if (focused) start();
+        else stop();
+      });
+      return () => {
+        stop();
+        unsub();
+      };
+    }, [enabled, pollingInterval, runFetch]);
+
+    // Текущее состояние из кэша.
+    const state = cache.getState<RT>(queryKey) ?? initialState;
+    const rawData = state?.data ?? null;
+
+    // select мемоизация: пересчёт только если rawData меняется ссылочно
+    // или меняется select.
+    const selectedData = useMemo<TSelected | null>(() => {
+      if (rawData === null) return null;
+      if (!select) return rawData as unknown as TSelected;
+      return select(rawData);
+    }, [rawData, select]);
+
+    const status = state?.status ?? 'idle';
+    const hasData = rawData !== null;
+    const isLoading = status === 'loading' && !hasData;
+    const isRefetching = status === 'loading' && hasData;
+    const error = state?.error ?? null;
+
+    const refetch = useCallback(async () => {
+      await runFetch(true);
+    }, [runFetch]);
 
     return {
-      data,
-      isLoading,
+      data: selectedData,
+      isLoading: enabled ? isLoading : false,
       isRefetching,
       error,
       refetch,

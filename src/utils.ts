@@ -1,4 +1,5 @@
 import { getConfig } from './config';
+import { ApiError } from './errors';
 
 import type { RequestConfig, ResponseWrapper } from './types';
 
@@ -15,8 +16,19 @@ export function buildEndpoint<RequestParamsType>(
   return endpoint as string;
 }
 
+type AxiosLikeError<E> = {
+  response?: { status: number; data: E };
+  message?: string;
+};
+
 /**
- * Executes an HTTP request with error handling and response wrapping
+ * Executes an HTTP request with error handling and response wrapping.
+ *
+ * Поведение зависит от `throwOnError` в `configureApiClient`:
+ * - false (default): возвращает `{ status: true, ... }` либо
+ *   `{ status: false, message?, errors? }`. Старое поведение.
+ * - true: на HTTP >= 400 / сетевой ошибке / теле с `{ status: false }`
+ *   кидает `ApiError`.
  */
 export async function executeRequest<
   ResponseType,
@@ -55,14 +67,58 @@ export async function executeRequest<
       });
     }
 
+    // Бизнес-ошибка: 2xx, но в теле { status: false }
+    const hasExplicitStatus =
+      response &&
+      typeof response === 'object' &&
+      'status' in (response as object) &&
+      typeof (response as unknown as { status: unknown }).status === 'boolean';
+    if (
+      config.throwOnError &&
+      hasExplicitStatus &&
+      (response as unknown as { status: boolean }).status === false
+    ) {
+      const body = response as unknown as {
+        status: false;
+        message?: string;
+        errors?: ErrorResponseType;
+      };
+      throw new ApiError<ErrorResponseType>({
+        message: body.message ?? 'Request failed',
+        status: 200,
+        errors: body.errors,
+        raw: response,
+      });
+    }
+
     return { ...response, status: true } as RT;
   } catch (e) {
-    const error = e as {
-      response?: { status: number; data: ErrorResponseType };
-    };
+    // Уже наш ApiError (из проверки status: false выше) — пробрасываем
+    if (e instanceof ApiError) throw e;
 
-    if (error.response?.status === 401 && config.onUnauthorized) {
+    const error = e as AxiosLikeError<ErrorResponseType>;
+    const httpStatus = error.response?.status;
+
+    if (httpStatus === 401 && config.onUnauthorized) {
       await config.onUnauthorized();
+    }
+
+    if (config.throwOnError) {
+      const data = error.response?.data as
+        | (ErrorResponseType & { message?: string; code?: string })
+        | undefined;
+      const isNetwork = httpStatus === undefined;
+      throw new ApiError<ErrorResponseType>({
+        message:
+          data?.message ??
+          (e instanceof Error ? e.message : undefined) ??
+          (isNetwork ? 'Network error' : 'Request error'),
+        status: httpStatus ?? 0,
+        code: data?.code,
+        errors: data,
+        isNetworkError: isNetwork,
+        raw: e,
+      });
     }
 
     if (error.response?.data) {
@@ -74,7 +130,7 @@ export async function executeRequest<
 
     return {
       status: false,
-      message: error instanceof Error ? error.message : 'Request error',
+      message: e instanceof Error ? e.message : 'Request error',
     } as unknown as RT;
   }
 }

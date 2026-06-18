@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
 
+import { getQueryClient } from '../query/client';
+import { matchQueryKey, type QueryKey } from '../query/key';
 import { executeRequest } from '../utils';
 
 import type {
@@ -10,7 +12,14 @@ import type {
 } from '../types/index';
 
 /**
- * Hook for mutations (POST/PUT/PATCH/DELETE requests)
+ * Hook for mutations (POST/PUT/PATCH/DELETE requests).
+ *
+ * Фаза 3:
+ * - onMutate теперь может вернуть context — он передаётся в onError/onSettled
+ *   для rollback.
+ * - setQueryData(client, vars, data) — точечный патч кэша после успеха.
+ * - invalidateKeys — массив или функция, помечает указанные ключи stale;
+ *   подписанные useFetch сами догоняют запросом.
  */
 export function createUseMutation<
   ResponseType,
@@ -22,10 +31,17 @@ export function createUseMutation<
 ) {
   type RT = ResponseWrapper<ResponseType, ErrorResponseType>;
 
-  return (
-    options: UseMutationOptions<RT, RequestParamsType> = {},
+  return <TContext = unknown>(
+    options: UseMutationOptions<RT, RequestParamsType, TContext> = {},
   ): UseMutationResult<RT, RequestParamsType> => {
-    const { onMutate, onSuccess, onError, onSettled } = options;
+    const {
+      onMutate,
+      onSuccess,
+      onError,
+      onSettled,
+      invalidateKeys,
+      setQueryData,
+    } = options;
 
     const [data, setData] = useState<RT | null>(null);
     const [error, setError] = useState<Error | null>(null);
@@ -41,6 +57,22 @@ export function createUseMutation<
       setIsError(false);
     }, []);
 
+    const applyInvalidate = useCallback(
+      (vars: RequestParamsType, result: RT) => {
+        if (!invalidateKeys) return;
+        const client = getQueryClient();
+        const keys =
+          typeof invalidateKeys === 'function'
+            ? invalidateKeys(vars, result)
+            : invalidateKeys;
+        if (keys.length === 0) return;
+        client.invalidateQueries((k: QueryKey) =>
+          keys.some(prefix => matchQueryKey(prefix, k)),
+        );
+      },
+      [invalidateKeys],
+    );
+
     const mutateAsync = useCallback(
       async (variables: RequestParamsType): Promise<RT> => {
         setIsLoading(true);
@@ -48,10 +80,12 @@ export function createUseMutation<
         setIsError(false);
         setError(null);
 
+        let context: TContext | undefined;
+
         try {
-          // onMutate callback
           if (onMutate) {
-            await onMutate(variables);
+            const ctx = await onMutate(variables);
+            context = ctx as TContext | undefined;
           }
 
           const result = await executeRequest<
@@ -64,23 +98,27 @@ export function createUseMutation<
 
           if (result.status) {
             setIsSuccess(true);
-            // onSuccess callback
+            // setQueryData — точечный патч кэша
+            if (setQueryData) {
+              setQueryData(getQueryClient(), variables, result);
+            }
+            // invalidateKeys — пометить stale и дать подписчикам догнать
+            applyInvalidate(variables, result);
+
             if (onSuccess) {
-              await onSuccess(result, variables);
+              await onSuccess(result, variables, context);
             }
           } else {
             const err = new Error(result.message ?? 'Mutation failed');
             setIsError(true);
             setError(err);
-            // onError callback
             if (onError) {
-              await onError(err, variables);
+              await onError(err, variables, context);
             }
           }
 
-          // onSettled callback (always called)
           if (onSettled) {
-            await onSettled(result, null, variables);
+            await onSettled(result, null, variables, context);
           }
 
           return result;
@@ -90,14 +128,11 @@ export function createUseMutation<
           setIsError(true);
           setIsSuccess(false);
 
-          // onError callback
           if (onError) {
-            await onError(error, variables);
+            await onError(error, variables, context);
           }
-
-          // onSettled callback (always called)
           if (onSettled) {
-            await onSettled(null, error, variables);
+            await onSettled(null, error, variables, context);
           }
 
           throw error;
@@ -105,7 +140,14 @@ export function createUseMutation<
           setIsLoading(false);
         }
       },
-      [onMutate, onSuccess, onError, onSettled],
+      [
+        onMutate,
+        onSuccess,
+        onError,
+        onSettled,
+        setQueryData,
+        applyInvalidate,
+      ],
     );
 
     const mutateSync = useCallback(

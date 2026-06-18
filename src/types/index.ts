@@ -12,15 +12,42 @@ export type ResponseWrapper<DataType, ErrorsType = unknown> = {
 } & DataType;
 
 // Fetch hook types
-export type UseFetchOptions<T> = {
+export type UseFetchOptions<T, TSelected = T> = {
   enabled?: boolean;
   refetchOnMount?: boolean;
+  /** Refetch при возврате на экран / в браузерное окно. */
+  refetchOnFocus?: boolean;
+  /** Refetch при возврате приложения в активное состояние (RN AppState). */
+  refetchOnAppActive?: boolean;
+  /** Refetch при восстановлении сетевого соединения (offline → online). */
+  refetchOnReconnect?: boolean;
+  /** Время свежести данных в ms. Пока не истечёт — повторный mount берёт из кэша без сети. */
+  staleTime?: number;
+  /** Сколько держать запись в кэше после ухода последнего подписчика. По умолчанию 5 мин. */
+  gcTime?: number;
+  /** Интервал поллинга в ms. Поллинг автоматически останавливается, если экран не виден. */
+  pollingInterval?: number;
+  /**
+   * Кастомный queryKey. По умолчанию собирается как
+   * `['__endpoint__', endpointString, params]`.
+   */
+  queryKey?: readonly unknown[];
+  /** Селектор результата — пересчитывается мемоизированно. */
+  select?: (data: T) => TSelected;
   onSuccess?: (data: T) => void;
   onError?: (error: Error) => void;
 };
 
 export type UseFetchResult<T> = {
   data: T | null;
+  isLoading: boolean;
+  isRefetching: boolean;
+  error: Error | null;
+  refetch: () => Promise<void>;
+};
+
+export type UseFetchSelectedResult<TSelected> = {
+  data: TSelected | null;
   isLoading: boolean;
   isRefetching: boolean;
   error: Error | null;
@@ -37,6 +64,16 @@ export type UsePaginateOptions<T> = {
   enabled?: boolean;
   initialPage?: number;
   initialLimit?: number;
+  /** ms — пока страница свежая, повторный mount берёт её из кэша. */
+  staleTime?: number;
+  gcTime?: number;
+  /**
+   * Если true — при смене страницы (или params) предыдущие данные остаются
+   * на экране до прихода новых. Полезно для плавной пагинации.
+   */
+  keepPreviousData?: boolean;
+  /** Кастомный префикс ключа кэша. По умолчанию — endpoint + serialized params. */
+  queryKey?: readonly unknown[];
   onSuccess?: (data: T) => void;
   onError?: (error: Error) => void;
 };
@@ -50,23 +87,64 @@ export type UsePaginateResult<TData extends unknown[]> = {
   hasPreviousPage: boolean;
   isLoading: boolean;
   isFetchingNextPage: boolean;
+  /** true если данные показываются из предыдущей страницы (keepPreviousData). */
+  isPlaceholderData: boolean;
   error: Error | null;
   fetchNextPage: () => Promise<void>;
   fetchPreviousPage: () => Promise<void>;
+  /** Префетчит следующую страницу в кэш, не меняя UI. */
+  prefetchNextPage: () => Promise<void>;
   refetch: () => Promise<void>;
   reset: () => void;
 };
 
 // Mutation types
-export type UseMutationOptions<TData, TVariables> = {
-  onMutate?: (variables: TVariables) => void | Promise<void>;
-  onSuccess?: (data: TData, variables: TVariables) => void | Promise<void>;
-  onError?: (error: Error, variables: TVariables) => void | Promise<void>;
+import type { QueryClient } from '../query/client';
+import type { QueryKey } from '../query/key';
+
+export type UseMutationOptions<TData, TVariables, TContext = unknown> = {
+  /**
+   * Вызывается ДО запроса. Может вернуть context — он попадёт в onError
+   * (для rollback) и в onSettled. Используется для optimistic updates:
+   * сохранить снепшот → применить оптимистичный setQueryData → в onError
+   * вернуть снепшот обратно.
+   */
+  onMutate?: (
+    variables: TVariables,
+  ) => void | TContext | Promise<void | TContext>;
+  onSuccess?: (
+    data: TData,
+    variables: TVariables,
+    context: TContext | undefined,
+  ) => void | Promise<void>;
+  onError?: (
+    error: Error,
+    variables: TVariables,
+    context: TContext | undefined,
+  ) => void | Promise<void>;
   onSettled?: (
     data: TData | null,
     error: Error | null,
     variables: TVariables,
+    context: TContext | undefined,
   ) => void | Promise<void>;
+  /**
+   * Ключи кэша, которые надо инвалидировать после успеха.
+   * Может быть массивом ключей или функцией, считающей их по vars/data.
+   * Каждый ключ матчится по префиксу (см. matchQueryKey).
+   */
+  invalidateKeys?:
+    | QueryKey[]
+    | ((vars: TVariables, data: TData) => QueryKey[]);
+  /**
+   * Точечно патчит кэш после успеха — до invalidate. Удобно для
+   * «сервер вернул свежий объект, положим его прямо в ['orders', id]».
+   */
+  setQueryData?: (
+    client: QueryClient,
+    variables: TVariables,
+    data: TData,
+  ) => void;
 };
 
 export type UseMutationResult<TData, TVariables> = {
@@ -96,6 +174,14 @@ export interface IHttpClient {
 export type ApiClientConfig = {
   httpClient: IHttpClient;
   onUnauthorized?: () => void | Promise<void>;
+  /**
+   * Когда true — любая ошибка (HTTP >= 400, сеть, тело с `{ status: false }`)
+   * приводит к `throw new ApiError(...)`. По умолчанию false — пакет
+   * сохраняет старое поведение (ошибки приходят как `{ status: false }`).
+   * Включать только после того, как все вызовы `await *.mutate()` /
+   * `await *.fetch()` обёрнуты в try/catch.
+   */
+  throwOnError?: boolean;
 };
 
 // API return types
@@ -121,10 +207,11 @@ export type ApiMutationReturn<
   mutate: (
     params?: RequestParamsType,
   ) => Promise<ResponseWrapper<ResponseType, ErrorResponseType>>;
-  useMutation: (
+  useMutation: <TContext = unknown>(
     options?: UseMutationOptions<
       ResponseWrapper<ResponseType, ErrorResponseType>,
-      RequestParamsType
+      RequestParamsType,
+      TContext
     >,
   ) => UseMutationResult<
     ResponseWrapper<ResponseType, ErrorResponseType>,

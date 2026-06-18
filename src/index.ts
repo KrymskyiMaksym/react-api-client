@@ -129,6 +129,41 @@ export { apiMutation, apiPaginate };
 // Export configuration
 export { configureApiClient, getConfig, isConfigured } from './config';
 
+// Унифицированные ошибки (Фаза 3.5)
+export { ApiError } from './errors';
+export type { ApiErrorInit } from './errors';
+
+// Query cache layer (Phase 1 + 2)
+export {
+  QueryCache,
+  QueryClient,
+  getQueryClient,
+  setQueryClient,
+  hashQueryKey,
+  matchQueryKey,
+  focusManager,
+  onlineManager,
+  ApiClientProvider,
+  useQueryClient,
+  persistQueryClient,
+  inspectCache,
+  invalidateAll,
+  summarizeCache,
+} from './query';
+export type {
+  FetchOptions,
+  QueryFn,
+  QueryKey,
+  QueryState,
+  QueryStatus,
+  ApiClientProviderProps,
+  DehydratedQuery,
+  DehydratedState,
+  PersistOptions,
+  PersistStorage,
+  CacheEntrySnapshot,
+} from './query';
+
 // Re-export types for convenience
 export type {
   ResponseWrapper,
