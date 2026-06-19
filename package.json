@@ -1,6 +1,6 @@
 {
   "name": "@krymskyimaksym/react-api-client",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "A lightweight, type-safe API client for React and React Native with built-in hooks",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -71,6 +71,6 @@
     "vitest": "^1.2.0"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   }
 }

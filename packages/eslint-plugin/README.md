@@ -5,8 +5,21 @@ ESLint-правила для [`@krymskyimaksym/react-api-client`](https://www.np
 ## Установка
 
 ```bash
-npm i -D @krymskyimaksym/eslint-plugin-react-api-client
+# npm
+npm install -D @krymskyimaksym/eslint-plugin-react-api-client
+
+# yarn
+yarn add -D @krymskyimaksym/eslint-plugin-react-api-client
+
+# pnpm
+pnpm add -D @krymskyimaksym/eslint-plugin-react-api-client
+
+# bun
+bun add -d @krymskyimaksym/eslint-plugin-react-api-client
 ```
+
+**Peer-зависимости:** `eslint >= 8`. `@typescript-eslint/utils`
+устанавливается транзитивно (входит в `dependencies` плагина).
 
 ## Подключение
 

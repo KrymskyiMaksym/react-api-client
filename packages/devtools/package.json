@@ -1,6 +1,6 @@
 {
   "name": "@krymskyimaksym/react-api-client-devtools",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "DevTools for @krymskyimaksym/react-api-client: cache inspector for React Native and web",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -24,7 +24,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsup",
@@ -45,14 +46,12 @@
     "url": "https://github.com/krymskyimaksym/react-api-client.git",
     "directory": "packages/devtools"
   },
-  "peerDependencies": {
-    "@krymskyimaksym/react-api-client": "^2.0.0-beta.0",
-    "react": ">=16.8.0"
+  "engines": {
+    "node": ">=18.0.0"
   },
-  "peerDependenciesMeta": {
-    "react-native": {
-      "optional": true
-    }
+  "peerDependencies": {
+    "@krymskyimaksym/react-api-client": "^2.1.0",
+    "react": ">=16.8.0"
   },
   "devDependencies": {
     "@krymskyimaksym/react-api-client": "file:../..",

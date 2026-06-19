@@ -12,10 +12,23 @@ DevTools для [`@krymskyimaksym/react-api-client`](https://www.npmjs.com/packa
 ## Установка
 
 ```bash
-npm i -D @krymskyimaksym/react-api-client-devtools
+# npm
+npm install -D @krymskyimaksym/react-api-client-devtools
+
+# yarn
+yarn add -D @krymskyimaksym/react-api-client-devtools
+
+# pnpm
+pnpm add -D @krymskyimaksym/react-api-client-devtools
+
+# bun
+bun add -d @krymskyimaksym/react-api-client-devtools
 ```
 
-`react-native` — опциональный peer; в веб-сборке не нужен.
+**Peer-зависимости:** `@krymskyimaksym/react-api-client ^2.1.0`,
+`react >= 16.8`. `react-native` подхватывается опционально через
+`try { require('react-native') } catch` — отдельно ставить не нужно
+(он у тебя уже стоит, если ты в RN-проекте).
 
 ## React Native
 

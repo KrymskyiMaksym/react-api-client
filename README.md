@@ -14,12 +14,33 @@ A lightweight, type-safe API client for React and React Native with built-in hoo
 ## Installation
 
 ```bash
+# npm
 npm install @krymskyimaksym/react-api-client
-# or
+
+# yarn
 yarn add @krymskyimaksym/react-api-client
-# or
+
+# pnpm
 pnpm add @krymskyimaksym/react-api-client
+
+# bun
+bun add @krymskyimaksym/react-api-client
 ```
+
+Опциональные сателлиты — ставятся отдельно по необходимости:
+
+```bash
+# DevTools (cache inspector для RN и web)
+npm install -D @krymskyimaksym/react-api-client-devtools
+
+# ESLint-плагин (no-await-mutate с autofix и др.)
+npm install -D @krymskyimaksym/eslint-plugin-react-api-client
+```
+
+**Peer-зависимости:** `react >= 16.8`. Для RN — установи `react-native`
+обычным способом (используется опционально, через `try/catch`).
+
+**Node:** требуется `>= 18`.
 
 ## Quick Start
 
