@@ -1,0 +1,64 @@
+{
+  "name": "@krymskyimaksym/react-api-client-devtools",
+  "version": "0.1.0",
+  "description": "DevTools for @krymskyimaksym/react-api-client: cache inspector for React Native and web",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./native": {
+      "types": "./dist/native.d.ts",
+      "import": "./dist/native.mjs",
+      "require": "./dist/native.js"
+    },
+    "./web": {
+      "types": "./dist/web.d.ts",
+      "import": "./dist/web.mjs",
+      "require": "./dist/web.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "react",
+    "react-native",
+    "devtools",
+    "api-client",
+    "cache",
+    "debug"
+  ],
+  "author": "Krymskyi Maksym <krimskiymaxim@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krymskyimaksym/react-api-client.git",
+    "directory": "packages/devtools"
+  },
+  "peerDependencies": {
+    "@krymskyimaksym/react-api-client": "^2.0.0-beta.0",
+    "react": ">=16.8.0"
+  },
+  "peerDependenciesMeta": {
+    "react-native": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@krymskyimaksym/react-api-client": "file:../..",
+    "@types/react": "^18.2.48",
+    "react": "^18.2.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  }
+}

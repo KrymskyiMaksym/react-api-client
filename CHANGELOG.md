@@ -4,6 +4,24 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## Сателлиты
+
+В этом репо появились два побочных пакета:
+
+- `packages/devtools/` → **`@krymskyimaksym/react-api-client-devtools@0.1.0`**
+  - `useCacheSnapshot()` — общий хук (snapshot + summary, подписан на изменения).
+  - `CacheDebugScreen` (sub-export `/native`) — React Native экран
+    с фильтром и действиями (refetch/invalidate/remove + invalidateAll).
+  - `CacheDevtoolsPanel` (sub-export `/web`) — floating-overlay для веба
+    в стиле TanStack Devtools.
+- `packages/eslint-plugin/` → **`@krymskyimaksym/eslint-plugin-react-api-client@0.1.0`**
+  - `no-await-mutate` (error, autofix) — заменяет `.mutate` на `.mutateAsync`.
+  - `require-query-key-when-endpoint-is-fn` (warn) — требует явный
+    `queryKey` если `apiClient(fn, …)` создан с endpoint-функцией.
+  - Конфиг `recommended` подключает оба правила.
+
+Core-пакет не меняется. Подпакеты публикуются независимо.
+
 ## [2.0.0-beta.2]
 
 Приоритет 2 + 3 из `api-client-package-improvements.md` (кроме
