@@ -1,6 +1,6 @@
 # @krymskyimaksym/eslint-plugin-react-api-client
 
-ESLint-правила для [`@krymskyimaksym/react-api-client`](../..).
+ESLint-правила для [`@krymskyimaksym/react-api-client`](https://www.npmjs.com/package/@krymskyimaksym/react-api-client) (требуется `^2.0.0`).
 
 ## Установка
 
@@ -29,7 +29,15 @@ module.exports = {
 }
 ```
 
-## Правила
+## Правила (recommended)
+
+| Rule | Severity | Autofix |
+|---|---|---|
+| `no-await-mutate` | error | ✓ |
+| `no-non-serializable-params` | error | — |
+| `require-query-key-when-endpoint-is-fn` | warn | — |
+
+## Описание
 
 ### `no-await-mutate` (error, autofix)
 
@@ -64,6 +72,20 @@ userApi.useFetch({ id: 1 }, { queryKey: ['user', 1] });
 При endpoint-функции стабильность ключа зависит от того, что функция
 возвращает одну и ту же строку для одних и тех же params. Явный
 `queryKey` снимает риск.
+
+### `no-non-serializable-params` (error)
+
+Запрещает функции и `Symbol` в объекте `params`. Они сломают
+`hashQueryKey` в рантайме (throw при первом mount):
+
+```ts
+// ❌
+api.useFetch({ id: 1, cb: () => 1 });
+api.useFetch({ tag: Symbol('x') });
+
+// ✅
+api.useFetch({ id: 1 });
+```
 
 ## License
 

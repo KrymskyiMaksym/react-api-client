@@ -11,6 +11,44 @@ export type ResponseWrapper<DataType, ErrorsType = unknown> = {
   errors?: ErrorsType;
 } & DataType;
 
+/**
+ * Module augmentation для отвязки публичных типов от Laravel-обёртки.
+ *
+ * Пользователь дополняет этот интерфейс в своём проекте:
+ *
+ * ```ts
+ * declare module '@krymskyimaksym/react-api-client' {
+ *   interface Register {
+ *     responseShape: 'plain'; // 'laravel' | 'jsonapi' | 'graphql' | 'plain'
+ *   }
+ * }
+ * ```
+ *
+ * По умолчанию (Register пустой) — `DataOf<T> = ResponseWrapper<T>`,
+ * совместимо с 1.x / 2.0.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface Register {}
+
+/**
+ * Условный тип «форма данных», возвращаемая `fetch` / `useFetch` /
+ * `useMutation`. Зависит от `Register['responseShape']`. По умолчанию
+ * — `ResponseWrapper<T>` (back-compat).
+ */
+export type DataOf<T, E = unknown> = Register extends {
+  responseShape: infer S;
+}
+  ? S extends 'plain'
+    ? T
+    : S extends 'laravel'
+      ? ResponseWrapper<T, E>
+      : S extends 'jsonapi'
+        ? T
+        : S extends 'graphql'
+          ? T
+          : ResponseWrapper<T, E>
+  : ResponseWrapper<T, E>;
+
 // Fetch hook types
 // TSelected — тип, который вернётся в `data` после применения `select`.
 // По умолчанию = T (т.е. полный ответ).
@@ -248,6 +286,13 @@ export type ApiClientConfig = {
   /** Опциональный логгер для отладки. */
   logger?: ApiClientLogger;
   /**
+   * Описывает форму ответа бекенда: как unwrap'ить успех, как
+   * детектить бизнес-ошибку в 2xx, как конвертировать в ApiError.
+   * Если не задан — встроенный laravel-fallback (`{ status: false }`
+   * как признак бизнес-ошибки). См. `adapters.ts`.
+   */
+  responseAdapter?: import('../adapters').ResponseAdapter;
+  /**
    * Дефолтный `staleTime` для всех хуков `useFetch` / `usePaginate`.
    * Если хук задал свой `staleTime` — он перекрывает этот дефолт.
    * Значение по умолчанию `0` (старое поведение — данные сразу stale,
@@ -265,13 +310,11 @@ export type ApiClientReturn<
 > = {
   fetch: (
     params?: RequestParamsType,
-  ) => Promise<ResponseWrapper<ResponseType, ErrorResponseType>>;
-  useFetch: <
-    TSelected = ResponseWrapper<ResponseType, ErrorResponseType>,
-  >(
+  ) => Promise<DataOf<ResponseType, ErrorResponseType>>;
+  useFetch: <TSelected = DataOf<ResponseType, ErrorResponseType>>(
     params?: RequestParamsType,
     options?: UseFetchOptions<
-      ResponseWrapper<ResponseType, ErrorResponseType>,
+      DataOf<ResponseType, ErrorResponseType>,
       TSelected
     >,
   ) => UseFetchResult<TSelected>;
@@ -284,15 +327,15 @@ export type ApiMutationReturn<
 > = {
   mutate: (
     params?: RequestParamsType,
-  ) => Promise<ResponseWrapper<ResponseType, ErrorResponseType>>;
+  ) => Promise<DataOf<ResponseType, ErrorResponseType>>;
   useMutation: <TContext = unknown>(
     options?: UseMutationOptions<
-      ResponseWrapper<ResponseType, ErrorResponseType>,
+      DataOf<ResponseType, ErrorResponseType>,
       RequestParamsType,
       TContext
     >,
   ) => UseMutationResult<
-    ResponseWrapper<ResponseType, ErrorResponseType>,
+    DataOf<ResponseType, ErrorResponseType>,
     RequestParamsType
   >;
 };
@@ -306,7 +349,7 @@ export type ApiPaginateReturn<
   usePaginate: <TSelected = DataArrayType>(
     params?: Omit<RequestParamsType, 'page' | 'limit'>,
     options?: UsePaginateOptions<
-      ResponseWrapper<ResponseType, ErrorResponseType>,
+      DataOf<ResponseType, ErrorResponseType>,
       DataArrayType,
       TSelected
     >,

@@ -1,6 +1,6 @@
 # @krymskyimaksym/react-api-client-devtools
 
-DevTools для [`@krymskyimaksym/react-api-client`](../..): инспектор
+DevTools для [`@krymskyimaksym/react-api-client`](https://www.npmjs.com/package/@krymskyimaksym/react-api-client) (требуется `^2.0.0`): инспектор
 кэша с действиями `refetch` / `invalidate` / `remove` на каждую запись.
 
 Два готовых компонента:

@@ -147,6 +147,16 @@ export { configureApiClient, getConfig, isConfigured } from './config';
 export { ApiError, toApiError, businessErrorToApiError } from './errors';
 export type { ApiErrorInit } from './errors';
 
+// Response adapters: backend-agnostic режим
+export {
+  laravelAdapter,
+  jsonApiAdapter,
+  graphqlAdapter,
+  problemJsonAdapter,
+  plainAdapter,
+} from './adapters';
+export type { ResponseAdapter } from './adapters';
+
 // Global state hooks
 export {
   useIsFetching,
@@ -190,6 +200,8 @@ export type {
 // Re-export types for convenience
 export type {
   ResponseWrapper,
+  Register,
+  DataOf,
   UseFetchOptions,
   UseFetchResult,
   UseMutationOptions,

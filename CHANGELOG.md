@@ -4,6 +4,35 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [2.1.0]
+
+Backend-agnostic режим. Полностью обратно-совместимо.
+
+### Added
+- `ResponseAdapter` тип + `configureApiClient({ responseAdapter })`.
+- Готовые адаптеры: `laravelAdapter`, `jsonApiAdapter`, `graphqlAdapter`,
+  `problemJsonAdapter`, `plainAdapter`.
+- `executeRequest` идёт через `responseAdapter.isBusinessError → unwrap`
+  при успехе и `responseAdapter.toError` при ошибке. Без адаптера —
+  старое Laravel-поведение.
+- `interface Register` + `DataOf<T, E>` — module augmentation для
+  type-level отвязки от `ResponseWrapper`. Значения `responseShape`:
+  `'laravel'` (default), `'plain'`, `'jsonapi'`, `'graphql'`.
+- `ApiClientReturn` / `ApiMutationReturn` / `ApiPaginateReturn`
+  переключены с `ResponseWrapper<T>` на `DataOf<T>`. Без `Register`
+  augmentation поведение типов не меняется.
+- README: разделы Laravel / Plain / JSON:API / GraphQL / problem+json /
+  собственный адаптер. Раздел Companion packages со ссылками на
+  `-devtools` и `eslint-plugin-...`.
+
+### Tests
+- +14 тестов на адаптеры (124 всего).
+
+### Backward compatibility
+- Без `responseAdapter` поведение runtime и типов идентично 2.0.
+- `toApiError` / `businessErrorToApiError` остаются экспортами —
+  building-block'и для своих адаптеров.
+
 ## [2.0.0]
 
 GA-релиз. Закрыта вся обратная связь из `api-client-feedback-for-author.md`

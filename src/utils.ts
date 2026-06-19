@@ -70,7 +70,27 @@ export async function executeRequest<
       });
     }
 
-    // Бизнес-ошибка: 2xx, но в теле { status: false } (Laravel-style)
+    // Если задан responseAdapter — отдаём управление ему.
+    // Это единственный путь обработки ответа для не-Laravel бекендов.
+    if (config.responseAdapter) {
+      const adapter = config.responseAdapter;
+      if (adapter.isBusinessError?.(response as unknown)) {
+        const err =
+          adapter.toError?.(response as unknown, 200) ??
+          new ApiError({
+            message: 'Business error',
+            status: 200,
+            raw: response,
+          });
+        throw err;
+      }
+      const unwrapped = adapter.unwrap
+        ? (adapter.unwrap(response as unknown) as ResponseType)
+        : response;
+      return unwrapped as unknown as RT;
+    }
+
+    // Дефолтный (Laravel) путь — обратная совместимость с 1.x / 2.0.
     const hasExplicitStatus =
       response &&
       typeof response === 'object' &&
@@ -99,6 +119,17 @@ export async function executeRequest<
 
     if (httpStatus === 401 && config.onUnauthorized) {
       await config.onUnauthorized();
+    }
+
+    // Adapter-путь: всегда ApiError через adapter.toError.
+    if (config.responseAdapter) {
+      const adapter = config.responseAdapter;
+      const body = error.response?.data ?? undefined;
+      const status = httpStatus ?? 0;
+      const err =
+        adapter.toError?.(body, status) ??
+        toApiError(e);
+      throw err;
     }
 
     if (config.throwOnError) {

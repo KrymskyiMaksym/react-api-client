@@ -290,6 +290,112 @@ const httpClient = {
 };
 ```
 
+## Backend integrations
+
+С версии 2.0 пакет полностью backend-agnostic. Контракт «как
+разговариваем с бекендом» описывается одним объектом `responseAdapter`
+в `configureApiClient`. Без него — встроенный Laravel-fallback
+(совместимо с 1.x).
+
+Готовые адаптеры экспортируются из core:
+`laravelAdapter`, `jsonApiAdapter`, `graphqlAdapter`, `problemJsonAdapter`,
+`plainAdapter`.
+
+Дополнительно — module augmentation `Register['responseShape']`
+переключает **типы** так же, как адаптер переключает **runtime**.
+
+### Laravel (default)
+
+```ts
+import { configureApiClient, laravelAdapter } from '@krymskyimaksym/react-api-client';
+
+configureApiClient({ httpClient, responseAdapter: laravelAdapter });
+// или просто:
+configureApiClient({ httpClient });
+// useFetch отдаёт ResponseWrapper<T> = { status, message?, errors?, ...T }
+// { status: false } → throw ApiError
+```
+
+### Plain REST (Express, Fastify, Nest)
+
+```ts
+import { configureApiClient, plainAdapter } from '@krymskyimaksym/react-api-client';
+
+// Типы: переключаем DataOf<T> = T (без обёртки)
+declare module '@krymskyimaksym/react-api-client' {
+  interface Register {
+    responseShape: 'plain';
+  }
+}
+
+configureApiClient({ httpClient, responseAdapter: plainAdapter });
+// useFetch<User>() возвращает User напрямую. Ошибки только по HTTP-статусам.
+```
+
+### JSON:API
+
+```ts
+import { configureApiClient, jsonApiAdapter } from '@krymskyimaksym/react-api-client';
+
+declare module '@krymskyimaksym/react-api-client' {
+  interface Register {
+    responseShape: 'jsonapi';
+  }
+}
+
+configureApiClient({ httpClient, responseAdapter: jsonApiAdapter });
+// unwrap: r.data → useFetch<User>() возвращает User
+// { errors: [...] } → throw ApiError с detail из первого error
+```
+
+### GraphQL (любой клиент под капотом)
+
+```ts
+import { configureApiClient, graphqlAdapter } from '@krymskyimaksym/react-api-client';
+
+declare module '@krymskyimaksym/react-api-client' {
+  interface Register {
+    responseShape: 'graphql';
+  }
+}
+
+configureApiClient({ httpClient, responseAdapter: graphqlAdapter });
+// unwrap: r.data → useFetch<Viewer>() возвращает Viewer
+// { errors: [...] } → throw ApiError({ errors: GraphQLErrors[] })
+```
+
+### RFC 7807 problem+json
+
+```ts
+configureApiClient({ httpClient, responseAdapter: problemJsonAdapter });
+// 2xx — identity, никакой бизнес-логики поверх HTTP.
+// >=400 + Content-Type: application/problem+json → ApiError с title/type.
+```
+
+### Свой адаптер
+
+```ts
+import type { ResponseAdapter } from '@krymskyimaksym/react-api-client';
+import { ApiError } from '@krymskyimaksym/react-api-client';
+
+const myAdapter: ResponseAdapter = {
+  unwrap: r => (r as { payload: unknown }).payload,
+  isBusinessError: r => (r as { ok?: boolean }).ok === false,
+  toError: (r, http) => new ApiError({
+    message: (r as { error?: string }).error ?? `HTTP ${http}`,
+    status: http,
+    raw: r,
+  }),
+};
+```
+
+## Companion packages
+
+| Package | What |
+|---|---|
+| [`@krymskyimaksym/react-api-client-devtools`](https://www.npmjs.com/package/@krymskyimaksym/react-api-client-devtools) | DevTools UI: `<CacheDebugScreen>` for RN, `<CacheDevtoolsPanel>` for Web |
+| [`@krymskyimaksym/eslint-plugin-react-api-client`](https://www.npmjs.com/package/@krymskyimaksym/eslint-plugin-react-api-client) | ESLint rules: `no-await-mutate` (autofix), `no-non-serializable-params`, `require-query-key-when-endpoint-is-fn` |
+
 ## React Native
 
 Пакет не зависит от `react-native`, поэтому `focusManager` /
