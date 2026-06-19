@@ -72,28 +72,43 @@ export function createUseFetch<
     const cache = client.cache;
 
     // queryFn — стабилен относительно serializedParams, не пересоздаём
-    // на каждый рендер.
-    const queryFn = useCallback(() => {
-      const parsedParams = serializedParams
-        ? (JSON.parse(serializedParams) as RequestParamsType)
-        : undefined;
-      return executeRequest<
-        ResponseType,
-        RequestParamsType,
-        ErrorResponseType
-      >(endpoint, fetchConfig, parsedParams);
-    }, [serializedParams]);
+    // на каждый рендер. Принимает signal от QueryCache и пробрасывает
+    // его в executeRequest → httpClient.
+    const queryFn = useCallback(
+      ({ signal }: { signal: AbortSignal }) => {
+        const parsedParams = serializedParams
+          ? (JSON.parse(serializedParams) as RequestParamsType)
+          : undefined;
+        return executeRequest<
+          ResponseType,
+          RequestParamsType,
+          ErrorResponseType
+        >(endpoint, fetchConfig, parsedParams, signal);
+      },
+      [serializedParams],
+    );
 
     const initialState = cache.getState<RT>(queryKey);
     const [, forceRender] = useState(0);
     const rerender = useCallback(() => forceRender(v => v + 1), []);
 
-    // Подписка на изменения ключа.
+    // Подписка на изменения ключа — работает даже при enabled: false,
+    // чтобы хук выступал read-only слушателем кэша. Полезно для
+    // бейджей/счётчиков, которые читают тот же ключ, что пишут другие
+    // экраны (см. JSDoc для `enabled`).
+    //
+    // На unmount: если стали последним подписчиком и запрос ещё inflight —
+    // отменяем HTTP, чтобы не держать соединение зря.
     useEffect(() => {
-      if (!enabled) return;
       const unsub = cache.subscribe(queryKey, rerender);
-      return unsub;
-    }, [cache, enabled, hashQueryKey(queryKey), rerender]);
+      return () => {
+        unsub();
+        const state = cache._debugEntries().get(hashQueryKey(queryKey));
+        if (state && state.subscribers.size === 0 && state.inflight) {
+          cache.cancelQueries(queryKey);
+        }
+      };
+    }, [cache, hashQueryKey(queryKey), rerender]);
 
     // Триггер запроса при mount / смене ключа / stale-инвалидации.
     const lastNotifiedRef = useRef<{

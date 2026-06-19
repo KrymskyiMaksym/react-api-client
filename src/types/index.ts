@@ -12,7 +12,21 @@ export type ResponseWrapper<DataType, ErrorsType = unknown> = {
 } & DataType;
 
 // Fetch hook types
+// TSelected — тип, который вернётся в `data` после применения `select`.
+// По умолчанию = T (т.е. полный ответ).
 export type UseFetchOptions<T, TSelected = T> = {
+  /**
+   * При `false`:
+   * - запрос НЕ инициируется (ни на mount, ни на focus/reconnect/poll);
+   * - но хук **подписан на ключ кэша** и перерисуется, если данные
+   *   обновит другой источник (другой `useFetch` с тем же ключом,
+   *   `setQueryData` / `invalidateQueries`, мутация, push-handler).
+   *
+   * То есть `enabled: false` превращает хук в read-only слушателя.
+   * Если нужно полностью «потушить» хук — просто не вызывай его.
+   *
+   * По умолчанию `true`.
+   */
   enabled?: boolean;
   refetchOnMount?: boolean;
   /** Refetch при возврате на экран / в браузерное окно. */
@@ -159,14 +173,23 @@ export type UseMutationResult<TData, TVariables> = {
 };
 
 // HTTP Client abstraction
+// `signal` опционален: если клиент его игнорирует, поведение
+// деградирует до текущего (HTTP-запрос идёт до конца, но кэш игнорирует результат).
 export interface IHttpClient {
   get<T>(
     url: string,
-    config?: { params?: Record<string, unknown> },
+    config?: {
+      params?: Record<string, unknown>;
+      signal?: AbortSignal;
+    },
   ): Promise<T>;
   request<T>(
     url: string,
-    config: { method?: string; data?: Record<string, unknown> },
+    config: {
+      method?: string;
+      data?: Record<string, unknown>;
+      signal?: AbortSignal;
+    },
   ): Promise<T>;
 }
 
@@ -193,10 +216,15 @@ export type ApiClientReturn<
   fetch: (
     params?: RequestParamsType,
   ) => Promise<ResponseWrapper<ResponseType, ErrorResponseType>>;
-  useFetch: (
+  useFetch: <
+    TSelected = ResponseWrapper<ResponseType, ErrorResponseType>,
+  >(
     params?: RequestParamsType,
-    options?: UseFetchOptions<ResponseWrapper<ResponseType, ErrorResponseType>>,
-  ) => UseFetchResult<ResponseWrapper<ResponseType, ErrorResponseType>>;
+    options?: UseFetchOptions<
+      ResponseWrapper<ResponseType, ErrorResponseType>,
+      TSelected
+    >,
+  ) => UseFetchResult<TSelected>;
 };
 
 export type ApiMutationReturn<

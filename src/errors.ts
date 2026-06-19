@@ -40,3 +40,73 @@ export class ApiError<E = unknown> extends Error {
     Object.setPrototypeOf(this, ApiError.prototype);
   }
 }
+
+const isObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null;
+
+/**
+ * Конвертация произвольного throw'нутого значения в `ApiError`.
+ * Покрывает 4 кейса:
+ * - `ApiError` → passthrough
+ * - axios-like `{ response: { status, data } }` → ApiError с полями из data
+ * - `Error` (сетевая ошибка, таймаут) → ApiError(isNetworkError, status: 0)
+ * - неизвестный объект → ApiError(message: 'Unknown error', status: 0)
+ */
+export function toApiError(thrown: unknown): ApiError {
+  if (thrown instanceof ApiError) return thrown;
+
+  if (isObject(thrown) && 'response' in thrown && isObject(thrown.response)) {
+    const r = thrown.response as { status?: number; data?: unknown };
+    const status = typeof r.status === 'number' ? r.status : 0;
+    const data = isObject(r.data) ? r.data : undefined;
+    const message =
+      (data && typeof data.message === 'string' ? data.message : undefined) ??
+      (thrown instanceof Error ? thrown.message : undefined) ??
+      `HTTP ${status}`;
+    return new ApiError({
+      message,
+      status,
+      code: data && typeof data.code === 'string' ? data.code : undefined,
+      errors: data?.errors as unknown,
+      isNetworkError: status === 0,
+      isUnauthorized: status === 401,
+      isValidationError: status === 422 || data?.errors !== undefined,
+      raw: r.data ?? thrown,
+    });
+  }
+
+  if (thrown instanceof Error) {
+    return new ApiError({
+      message: thrown.message,
+      status: 0,
+      isNetworkError: true,
+      raw: thrown,
+    });
+  }
+
+  return new ApiError({
+    message: 'Unknown error',
+    status: 0,
+    raw: thrown,
+  });
+}
+
+/**
+ * Для 2xx ответа, в теле которого Laravel-style `{ status: false }`.
+ * Возвращает ApiError(status: 200, ...). Вызывается из executeRequest
+ * только при `throwOnError: true`.
+ */
+export function businessErrorToApiError(response: unknown): ApiError {
+  if (!isObject(response)) {
+    return new ApiError({ message: 'Request failed', status: 200, raw: response });
+  }
+  return new ApiError({
+    message:
+      typeof response.message === 'string' ? response.message : 'Request failed',
+    status: 200,
+    code: typeof response.code === 'string' ? response.code : undefined,
+    errors: response.errors,
+    isValidationError: response.errors !== undefined,
+    raw: response,
+  });
+}

@@ -102,6 +102,39 @@ describe('persistQueryClient', () => {
     expect(c2.getQueryData(['secret', 1])).toBeUndefined();
   });
 
+  it('auto-persist: setQueryData → через throttleMs запись в storage без ручного persist()', async () => {
+    vi.useFakeTimers();
+    const c = new QueryClient();
+    const storage = makeMemStorage();
+    const setItem = vi.spyOn(storage, 'setItem');
+
+    const p = persistQueryClient({ client: c, storage, throttleMs: 100 });
+    c.setQueryData(['orders', 1], { id: 1, name: 'a' });
+
+    expect(setItem).not.toHaveBeenCalled(); // ещё не дёрнуло throttle
+    await vi.advanceTimersByTimeAsync(150);
+    expect(setItem).toHaveBeenCalledTimes(1);
+
+    p.unsubscribe();
+    vi.useRealTimers();
+  });
+
+  it('throttle: 10 быстрых setQueryData → одна запись в storage', async () => {
+    vi.useFakeTimers();
+    const c = new QueryClient();
+    const storage = makeMemStorage();
+    const setItem = vi.spyOn(storage, 'setItem');
+
+    const p = persistQueryClient({ client: c, storage, throttleMs: 50 });
+    for (let i = 0; i < 10; i++) c.setQueryData(['k', i], { v: i });
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(setItem).toHaveBeenCalledTimes(1);
+
+    p.unsubscribe();
+    vi.useRealTimers();
+  });
+
   it('повторный persist без изменений не пишет в storage', async () => {
     const c = new QueryClient();
     await c.fetchQuery(['k'], () => Promise.resolve('v'));

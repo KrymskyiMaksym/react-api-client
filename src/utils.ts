@@ -1,5 +1,5 @@
 import { getConfig } from './config';
-import { ApiError } from './errors';
+import { ApiError, businessErrorToApiError, toApiError } from './errors';
 
 import type { RequestConfig, ResponseWrapper } from './types';
 
@@ -38,6 +38,7 @@ export async function executeRequest<
   endpoint: string | ((arg0: RequestParamsType) => string),
   fetchConfig: RequestConfig,
   params?: RequestParamsType,
+  signal?: AbortSignal,
 ): Promise<ResponseWrapper<ResponseType, ErrorResponseType>> {
   type RT = ResponseWrapper<ResponseType, ErrorResponseType>;
   const url = buildEndpoint(endpoint, params);
@@ -56,6 +57,7 @@ export async function executeRequest<
           ...requestConfig.requestParams,
           ...(params as Record<string, string>),
         },
+        signal,
       });
     } else {
       response = await config.httpClient.request<ResponseType>(url, {
@@ -64,10 +66,11 @@ export async function executeRequest<
           ...requestConfig.requestParams,
           ...(params as Record<string, unknown>),
         },
+        signal,
       });
     }
 
-    // Бизнес-ошибка: 2xx, но в теле { status: false }
+    // Бизнес-ошибка: 2xx, но в теле { status: false } (Laravel-style)
     const hasExplicitStatus =
       response &&
       typeof response === 'object' &&
@@ -78,23 +81,18 @@ export async function executeRequest<
       hasExplicitStatus &&
       (response as unknown as { status: boolean }).status === false
     ) {
-      const body = response as unknown as {
-        status: false;
-        message?: string;
-        errors?: ErrorResponseType;
-      };
-      throw new ApiError<ErrorResponseType>({
-        message: body.message ?? 'Request failed',
-        status: 200,
-        errors: body.errors,
-        raw: response,
-      });
+      throw businessErrorToApiError(response);
     }
 
     return { ...response, status: true } as RT;
   } catch (e) {
-    // Уже наш ApiError (из проверки status: false выше) — пробрасываем
-    if (e instanceof ApiError) throw e;
+    // Уже наш ApiError — пробрасываем без модификаций
+    if (e instanceof ApiError) {
+      if (e.status === 401 && config.onUnauthorized) {
+        await config.onUnauthorized();
+      }
+      throw e;
+    }
 
     const error = e as AxiosLikeError<ErrorResponseType>;
     const httpStatus = error.response?.status;
@@ -104,21 +102,7 @@ export async function executeRequest<
     }
 
     if (config.throwOnError) {
-      const data = error.response?.data as
-        | (ErrorResponseType & { message?: string; code?: string })
-        | undefined;
-      const isNetwork = httpStatus === undefined;
-      throw new ApiError<ErrorResponseType>({
-        message:
-          data?.message ??
-          (e instanceof Error ? e.message : undefined) ??
-          (isNetwork ? 'Network error' : 'Request error'),
-        status: httpStatus ?? 0,
-        code: data?.code,
-        errors: data,
-        isNetworkError: isNetwork,
-        raw: e,
-      });
+      throw toApiError(e);
     }
 
     if (error.response?.data) {

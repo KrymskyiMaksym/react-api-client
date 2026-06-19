@@ -17,12 +17,22 @@ type QueryEntry<T> = {
   state: QueryState<T>;
   subscribers: Set<Listener>;
   inflight: Promise<T> | null;
+  inflightController: AbortController | null;
   gcTimer: ReturnType<typeof setTimeout> | null;
   staleTime: number;
   gcTime: number;
 };
 
-export type QueryFn<T> = () => Promise<T>;
+export type QueryFnContext = { signal: AbortSignal };
+/**
+ * queryFn принимает контекст с AbortSignal. Если HTTP-клиент его
+ * использует — отмена будет реальной; если игнорирует — поведение
+ * деградирует до текущего (запрос идёт до конца, но кэш игнорирует результат).
+ *
+ * Для обратной совместимости старая сигнатура `() => Promise<T>` тоже
+ * принимается — пакет просто не передаст signal внутрь.
+ */
+export type QueryFn<T> = (ctx: QueryFnContext) => Promise<T>;
 
 export type FetchOptions = {
   staleTime?: number;
@@ -40,6 +50,23 @@ const DEFAULT_STALE_TIME = 0;
  */
 export class QueryCache {
   private entries = new Map<string, QueryEntry<unknown>>();
+  private globalListeners = new Set<Listener>();
+
+  /**
+   * Подписка на любое изменение кэша: setData, invalidate, remove,
+   * успешный/ошибочный fetch. Используется persistQueryClient и
+   * devtools-подобными адаптерами. Не дублирует `subscribe(key, ...)`.
+   */
+  subscribeAll(listener: Listener): () => void {
+    this.globalListeners.add(listener);
+    return () => {
+      this.globalListeners.delete(listener);
+    };
+  }
+
+  private notifyGlobal() {
+    for (const listener of this.globalListeners) listener();
+  }
 
   private ensureEntry<T>(
     key: QueryKey,
@@ -60,6 +87,7 @@ export class QueryCache {
         },
         subscribers: new Set(),
         inflight: null,
+        inflightController: null,
         gcTimer: null,
         staleTime: staleTime ?? DEFAULT_STALE_TIME,
         gcTime: gcTime ?? DEFAULT_GC_TIME,
@@ -119,6 +147,7 @@ export class QueryCache {
 
   private notify<T>(entry: QueryEntry<T>) {
     for (const listener of entry.subscribers) listener();
+    this.notifyGlobal();
   }
 
   private scheduleGc<T>(entry: QueryEntry<T>) {
@@ -161,8 +190,10 @@ export class QueryCache {
     entry.state = { ...entry.state, status: 'loading', error: null };
     this.notify(entry);
 
+    const controller = new AbortController();
     const token = Symbol('inflight');
     (entry as QueryEntry<T> & { inflightToken?: symbol }).inflightToken = token;
+    entry.inflightController = controller;
 
     const isCurrent = () =>
       (entry as QueryEntry<T> & { inflightToken?: symbol }).inflightToken ===
@@ -170,7 +201,7 @@ export class QueryCache {
 
     const myPromise: Promise<T> = (async () => {
       try {
-        const data = await queryFn();
+        const data = await queryFn({ signal: controller.signal });
         if (!isCurrent()) return data;
         entry.state = {
           data,
@@ -191,7 +222,10 @@ export class QueryCache {
         this.notify(entry);
         throw err;
       } finally {
-        if (isCurrent()) entry.inflight = null;
+        if (isCurrent()) {
+          entry.inflight = null;
+          entry.inflightController = null;
+        }
       }
     })();
 
@@ -233,6 +267,9 @@ export class QueryCache {
         : (k: QueryKey) => matchQueryKey(predicate, k);
     for (const entry of this.entries.values()) {
       if (match(entry.key) && entry.inflight) {
+        // реальная отмена HTTP: вызываем abort на сохранённом controller
+        entry.inflightController?.abort();
+        entry.inflightController = null;
         entry.inflight = null;
         (entry as QueryEntry<unknown> & { inflightToken?: symbol })
           .inflightToken = undefined;
@@ -253,12 +290,15 @@ export class QueryCache {
       typeof predicate === 'function'
         ? predicate
         : (k: QueryKey) => matchQueryKey(predicate, k);
+    let removed = false;
     for (const [hash, entry] of [...this.entries]) {
       if (match(entry.key)) {
         if (entry.gcTimer) clearTimeout(entry.gcTimer);
         this.entries.delete(hash);
+        removed = true;
       }
     }
+    if (removed) this.notifyGlobal();
   }
 
   /** Только для тестов / DevTools. */

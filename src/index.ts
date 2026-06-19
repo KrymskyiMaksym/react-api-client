@@ -129,8 +129,8 @@ export { apiMutation, apiPaginate };
 // Export configuration
 export { configureApiClient, getConfig, isConfigured } from './config';
 
-// Унифицированные ошибки (Фаза 3.5)
-export { ApiError } from './errors';
+// Унифицированные ошибки (Фаза 3.5 + 1.2)
+export { ApiError, toApiError, businessErrorToApiError } from './errors';
 export type { ApiErrorInit } from './errors';
 
 // Query cache layer (Phase 1 + 2)

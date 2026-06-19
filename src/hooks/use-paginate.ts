@@ -97,21 +97,22 @@ export function createUsePaginate<
     );
 
     const pageQueryFn = useCallback(
-      (page: number) => () => {
-        const parsedParams = serializedParams
-          ? (JSON.parse(serializedParams) as Record<string, unknown>)
-          : {};
-        const requestParams = {
-          ...parsedParams,
-          page,
-          limit,
-        } as RequestParamsType;
-        return executeRequest<
-          ResponseType,
-          RequestParamsType,
-          ErrorResponseType
-        >(endpoint, fetchConfig, requestParams);
-      },
+      (page: number) =>
+        ({ signal }: { signal: AbortSignal }) => {
+          const parsedParams = serializedParams
+            ? (JSON.parse(serializedParams) as Record<string, unknown>)
+            : {};
+          const requestParams = {
+            ...parsedParams,
+            page,
+            limit,
+          } as RequestParamsType;
+          return executeRequest<
+            ResponseType,
+            RequestParamsType,
+            ErrorResponseType
+          >(endpoint, fetchConfig, requestParams, signal);
+        },
       [serializedParams, limit],
     );
 

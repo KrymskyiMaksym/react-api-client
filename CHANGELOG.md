@@ -4,6 +4,55 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [2.0.0-beta.1]
+
+Приоритет 1 из `api-client-package-improvements.md` — доработки,
+без которых больно мигрировать UI.
+
+### Added
+- **1.1 `TSelected` через `apiClient`** — `useFetch<TSelected>(...)`
+  выводит тип `data` из `select`. Без any/as:
+  `const { data } = api.useFetch(undefined, { select: r => r.count })`.
+- **1.2 `toApiError` / `businessErrorToApiError`** — нормализация
+  ошибок вынесена в публичные хелперы. `ApiError` passthrough,
+  axios-style `{response: {status, data}}`, голый `Error`, и 200 +
+  `{ status: false }` — все 4 кейса в одном месте. `executeRequest`
+  стал короче и предсказуемее.
+- **1.3 AbortSignal в `cancelQueries`** — реальная отмена HTTP:
+  - `IHttpClient.get/request` принимают опциональный `signal`.
+  - `QueryCache.fetch` создаёт `AbortController` и пробрасывает signal
+    в `queryFn(ctx)`. Старая сигнатура `() => Promise<T>` тоже
+    принимается.
+  - `cancelQueries(predicate)` вызывает `controller.abort()`.
+  - `useFetch` отменяет inflight при размонтировании последнего
+    подписчика.
+  - Если HTTP-клиент игнорирует signal — поведение деградирует до
+    текущего (запрос продолжится, но результат не попадёт в кэш).
+- **1.4 `persistQueryClient` подписан на изменения** —
+  `QueryCache.subscribeAll(listener)`. Persist сам throttle-пишет
+  после `setData`/`invalidate`/`remove`/успешного fetch. Ручной
+  `persist()` остаётся для logout/shutdown, но в обычном потоке
+  не нужен.
+- **`enabled: false` = read-only слушатель** — хук не делает запрос,
+  но подписан на ключ кэша и перерисуется на `setQueryData` /
+  `invalidateQueries` / мутации с тем же ключом. Документировано в
+  JSDoc типа `UseFetchOptions.enabled`.
+
+### Tests
+- +13 unit/integration тестов (81 всего, было 65):
+  - `to-api-error.test.ts` — 9 кейсов на нормализацию ошибок;
+  - `abort.test.ts` — signal в queryFn, реальный abort, новый
+    controller после cancel;
+  - `phase6-persist.test.ts` — auto-persist на `setQueryData`,
+    throttle 10 быстрых изменений → одна запись;
+  - `enabled-false.test.tsx` — отдаёт из кэша, перерисуется на
+    setQueryData снаружи.
+
+### Backward compatibility
+- Все доработки — аддитивные. Старые сигнатуры работают как раньше.
+- `QueryFn<T>` теперь принимает `ctx: { signal }`, но старая
+  `() => Promise<T>` совместима (пакет просто не пробросит signal).
+
 ## [2.0.0-beta.0]
 
 ### Added

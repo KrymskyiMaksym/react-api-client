@@ -39,14 +39,17 @@ type Snapshot = {
 
 /**
  * Подключает QueryClient к persistent storage.
- * Возвращает { restore, persist, unsubscribe }:
- * - `restore()` — гидратирует кэш из storage (вызывать на старте приложения).
+ *
+ * С версии 2.0.0 — подписан на `cache.subscribeAll`, поэтому
+ * автоматически сохраняет состояние через `throttleMs` после любого
+ * изменения (setData, успешный fetch, invalidate, remove). Ручной
+ * `persist()` остаётся доступным для критичных моментов (logout,
+ * shutdown), но в обычном потоке не нужен.
+ *
+ * Возвращает:
+ * - `restore()` — гидратирует кэш из storage. Вызывать на старте.
  * - `persist()` — форс-запись текущего состояния.
  * - `unsubscribe()` — отключить авто-сохранение.
- *
- * Простая модель: на каждое изменение через client.cache._debugEntries
- * нет подписки, поэтому persist вызываем вручную из мутаций / по таймеру.
- * Здесь — таймер по throttleMs. Этого хватает для чатов/архива.
  */
 export function persistQueryClient(options: PersistOptions): {
   restore: () => Promise<void>;
@@ -63,20 +66,27 @@ export function persistQueryClient(options: PersistOptions): {
     version,
   } = options;
 
-  let timer: ReturnType<typeof setInterval> | null = null;
+  let pendingTimer: ReturnType<typeof setTimeout> | null = null;
   let lastSerialized: string | null = null;
+  let unsubscribed = false;
 
   const persist = async () => {
     const state = client.cache.dehydrate(allowList);
-    if (state.queries.length === 0) {
-      // нечего сохранять — но не очищаем (могло быть восстановлено ранее)
-      return;
-    }
+    if (state.queries.length === 0) return;
     const snap: Snapshot = { version, savedAt: Date.now(), state };
     const serialized = JSON.stringify(snap);
     if (serialized === lastSerialized) return;
     lastSerialized = serialized;
     await storage.setItem(storageKey, serialized);
+  };
+
+  const scheduleWrite = () => {
+    if (unsubscribed) return;
+    if (pendingTimer) return; // throttle: один таймер на окно
+    pendingTimer = setTimeout(() => {
+      pendingTimer = null;
+      void persist();
+    }, throttleMs);
   };
 
   const restore = async () => {
@@ -98,16 +108,18 @@ export function persistQueryClient(options: PersistOptions): {
     }
   };
 
-  timer = setInterval(() => {
-    void persist();
-  }, throttleMs);
+  const unsubscribeFromCache = client.cache.subscribeAll(scheduleWrite);
 
   return {
     restore,
     persist,
     unsubscribe: () => {
-      if (timer) clearInterval(timer);
-      timer = null;
+      unsubscribed = true;
+      unsubscribeFromCache();
+      if (pendingTimer) {
+        clearTimeout(pendingTimer);
+        pendingTimer = null;
+      }
     },
   };
 }
