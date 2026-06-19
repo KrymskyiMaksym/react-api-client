@@ -1,6 +1,6 @@
 {
   "name": "@krymskyimaksym/react-api-client-devtools",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DevTools for @krymskyimaksym/react-api-client: cache inspector for React Native and web",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

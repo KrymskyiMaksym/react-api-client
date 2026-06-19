@@ -24,7 +24,7 @@ export const requireQueryKeyWhenEndpointIsFn = createRule({
     docs: {
       description:
         'When apiClient is created from an endpoint function, useFetch should specify explicit queryKey.',
-      recommended: 'warn',
+      recommended: 'recommended',
     },
     schema: [],
     messages: {

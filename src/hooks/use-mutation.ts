@@ -98,7 +98,8 @@ export function createUseMutation<
           Array.isArray(invalidateKeys) && invalidateKeys.length > 0
             ? (invalidateKeys[0] as QueryKey)
             : undefined;
-        const mutationId = mutationCounter.start(scope);
+        const controller = new AbortController();
+        const mutationId = mutationCounter.start(scope, controller);
         const endpointId = buildEndpoint<RequestParamsType>(endpoint, variables);
         callLogger('onMutationStart', endpointId, variables);
 
@@ -114,7 +115,7 @@ export function createUseMutation<
             ResponseType,
             RequestParamsType,
             ErrorResponseType
-          >(endpoint, fetchConfig, variables);
+          >(endpoint, fetchConfig, variables, controller.signal);
 
           setData(result);
 

@@ -46,8 +46,19 @@ export type UseFetchOptions<T, TSelected = T> = {
    * `['__endpoint__', endpointString, params]`.
    */
   queryKey?: readonly unknown[];
-  /** Селектор результата — пересчитывается мемоизированно. */
+  /**
+   * Селектор результата — пересчитывается мемоизированно.
+   * Изменение исходных `data` запускает `select` заново; чтобы избежать
+   * лишних ререндеров при равных, но новых по ссылке объектах — задай
+   * `selectIsEqual`.
+   */
   select?: (data: T) => TSelected;
+  /**
+   * Сравнение результатов `select` для предотвращения ререндеров.
+   * По умолчанию — `Object.is` (референсное равенство).
+   * Передавай `shallowEqual`/`deepEqual` для structural-сравнения.
+   */
+  selectIsEqual?: (a: TSelected, b: TSelected) => boolean;
   onSuccess?: (data: T) => void;
   onError?: (error: Error) => void;
 };
@@ -74,7 +85,7 @@ export type PaginationParams = {
   limit?: number;
 };
 
-export type UsePaginateOptions<T> = {
+export type UsePaginateOptions<T, TData = unknown[], TSelected = TData> = {
   enabled?: boolean;
   initialPage?: number;
   initialLimit?: number;
@@ -88,11 +99,18 @@ export type UsePaginateOptions<T> = {
   keepPreviousData?: boolean;
   /** Кастомный префикс ключа кэша. По умолчанию — endpoint + serialized params. */
   queryKey?: readonly unknown[];
+  /**
+   * Селектор поверх массива страницы. По умолчанию — identity.
+   * Применяется к уже извлечённому массиву `TData`.
+   */
+  select?: (data: TData) => TSelected;
+  /** Сравнение результатов `select` для предотвращения ререндеров. По умолчанию `Object.is`. */
+  selectIsEqual?: (a: TSelected, b: TSelected) => boolean;
   onSuccess?: (data: T) => void;
   onError?: (error: Error) => void;
 };
 
-export type UsePaginateResult<TData extends unknown[]> = {
+export type UsePaginateResult<TData> = {
   data: TData;
   currentPage: number;
   totalPages: number | null;
@@ -229,6 +247,14 @@ export type ApiClientConfig = {
   throwOnError?: boolean;
   /** Опциональный логгер для отладки. */
   logger?: ApiClientLogger;
+  /**
+   * Дефолтный `staleTime` для всех хуков `useFetch` / `usePaginate`.
+   * Если хук задал свой `staleTime` — он перекрывает этот дефолт.
+   * Значение по умолчанию `0` (старое поведение — данные сразу stale,
+   * каждый mount = новый запрос). Поднимай до `5_000`–`30_000`, чтобы
+   * избежать лишних refetch'ей при mount в среднем SPA-сценарии.
+   */
+  defaultStaleTime?: number;
 };
 
 // API return types
@@ -277,10 +303,12 @@ export type ApiPaginateReturn<
   DataArrayType extends unknown[],
   ErrorResponseType = unknown,
 > = {
-  usePaginate: (
+  usePaginate: <TSelected = DataArrayType>(
     params?: Omit<RequestParamsType, 'page' | 'limit'>,
     options?: UsePaginateOptions<
-      ResponseWrapper<ResponseType, ErrorResponseType>
+      ResponseWrapper<ResponseType, ErrorResponseType>,
+      DataArrayType,
+      TSelected
     >,
-  ) => UsePaginateResult<DataArrayType>;
+  ) => UsePaginateResult<TSelected>;
 };

@@ -1,4 +1,4 @@
-import { createElement, useCallback, useState } from 'react';
+import { createElement, useCallback, useState, type ReactElement } from 'react';
 
 import {
   invalidateAll,
@@ -34,7 +34,9 @@ export type CacheDebugScreenProps = {
  * @example
  * <Stack.Screen name="cache" component={CacheDebugScreen} />
  */
-export function CacheDebugScreen({ scope }: CacheDebugScreenProps = {}) {
+export function CacheDebugScreen({
+  scope,
+}: CacheDebugScreenProps = {}): ReactElement {
   if (!RN) {
     throw new Error(
       '@krymskyimaksym/react-api-client-devtools/native: react-native не установлен',

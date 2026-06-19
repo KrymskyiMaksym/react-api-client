@@ -290,27 +290,56 @@ const httpClient = {
 };
 ```
 
-## `mutate` vs `mutateAsync`
+## React Native
 
-`useMutation` возвращает оба варианта вызова — намеренно с разными типами.
+Пакет не зависит от `react-native`, поэтому `focusManager` /
+`onlineManager` в RN-приложениях нужно подключать вручную при старте:
 
-```ts
-const { mutate, mutateAsync } = api.useMutation();
+```tsx
+import { AppState } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
+import { focusManager, onlineManager } from '@krymskyimaksym/react-api-client';
 
-// ❌ Анти-паттерн: mutate возвращает void, не Promise.
-//    `await` отдаст undefined; try/catch не сработает.
-await mutate({ id: 1 });
+// При запуске приложения (например, в App.tsx)
+AppState.addEventListener('change', state => {
+  focusManager.setFocused(state === 'active');
+});
 
-// ✅ Правильно: для последовательной логики или try/catch — mutateAsync.
+// Опционально — NetInfo (если установлен в проекте)
+NetInfo.addEventListener(s => onlineManager.setOnline(!!s.isConnected));
+```
+
+После этого опции `refetchOnFocus`, `refetchOnAppActive`,
+`refetchOnReconnect` в `useFetch` начнут работать.
+
+## `mutateAsync` vs `mutate`
+
+`useMutation` возвращает два варианта вызова — намеренно с разными
+типами. **Рекомендуемое имя по умолчанию — `mutateAsync`.**
+
+```tsx
+// ✅ Рекомендуемый паттерн: достаём mutateAsync первым.
+const { mutateAsync, isLoading } = api.useMutation();
+
+// Для последовательной логики или try/catch — mutateAsync (Promise).
 try {
   const result = await mutateAsync({ id: 1 });
 } catch (e) {
   // обработка
 }
 
-// ✅ Правильно: для fire-and-forget (кнопка с onClick) — mutate.
+// Для fire-and-forget (кнопка с onClick) — тоже mutateAsync с void:
+<Button onPress={() => { void mutateAsync({ id: 1 }); }} />;
+
+// `mutate` остаётся доступным как короткий fire-and-forget без await.
+const { mutate } = api.useMutation();
 <Button onPress={() => mutate({ id: 1 })} />;
 ```
+
+❌ **Анти-паттерн:** `await mutate(...)` — `mutate` возвращает `void`,
+`await` отдаст `undefined`, `try/catch` не сработает. ESLint-плагин
+`@krymskyimaksym/eslint-plugin-react-api-client` ловит это правилом
+`no-await-mutate` (с autofix → `mutateAsync`).
 
 Если включён `throwOnError: true` — для критичных мутаций используй
 `mutateAsync` и обёртку `try/catch`, иначе ошибка не будет

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { getConfig, isConfigured } from '../config';
 import { getQueryClient } from '../query/client';
 import { hashQueryKey, type QueryKey } from '../query/key';
 import { buildEndpoint, executeRequest, handleResponse } from '../utils';
@@ -35,18 +36,20 @@ export function createUsePaginate<
 ) {
   type RT = ResponseWrapper<ResponseType, ErrorResponseType>;
 
-  return (
+  return <TSelected = TData>(
     params?: Omit<RequestParamsType, 'page' | 'limit'>,
-    hookOptions: UsePaginateOptions<RT> = {},
-  ): UsePaginateResult<TData> => {
+    hookOptions: UsePaginateOptions<RT, TData, TSelected> = {},
+  ): UsePaginateResult<TSelected> => {
     const {
       enabled = true,
       initialPage = 1,
       initialLimit = 20,
-      staleTime = 0,
+      staleTime = isConfigured() ? getConfig().defaultStaleTime ?? 0 : 0,
       gcTime,
       keepPreviousData = false,
       queryKey: customKey,
+      select,
+      selectIsEqual,
       onSuccess,
       onError,
     } = hookOptions;
@@ -188,10 +191,22 @@ export function createUsePaginate<
       ? cache.getData<RT>(previousPageKeyRef.current as QueryKey)
       : currentResult;
 
-    const data: TData =
+    const rawData: TData =
       effectiveResult && effectiveResult.status
         ? dataExtractor(effectiveResult as ResponseType)
         : ([] as unknown as TData);
+
+    const lastSelectedRef = useRef<TSelected | null>(null);
+    const data: TSelected = useMemo(() => {
+      const next = select
+        ? select(rawData)
+        : (rawData as unknown as TSelected);
+      const prev = lastSelectedRef.current;
+      const isEqual = selectIsEqual ?? Object.is;
+      if (prev !== null && isEqual(prev, next)) return prev;
+      lastSelectedRef.current = next;
+      return next;
+    }, [rawData, select, selectIsEqual]);
 
     const totalCount =
       effectiveResult && effectiveResult.status

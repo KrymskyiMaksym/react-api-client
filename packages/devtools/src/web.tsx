@@ -3,6 +3,7 @@ import {
   useCallback,
   useState,
   type CSSProperties,
+  type ReactElement,
 } from 'react';
 
 import {
@@ -31,7 +32,7 @@ export type CacheDevtoolsPanelProps = {
 export function CacheDevtoolsPanel({
   initialOpen = false,
   position = 'bottom-right',
-}: CacheDevtoolsPanelProps = {}) {
+}: CacheDevtoolsPanelProps = {}): ReactElement {
   const client = useQueryClient();
   const { entries, summary } = useCacheSnapshot();
   const [open, setOpen] = useState(initialOpen);

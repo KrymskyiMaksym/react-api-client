@@ -4,6 +4,45 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [2.0.0]
+
+GA-релиз. Закрыта вся обратная связь из `api-client-feedback-for-author.md`
+(категории 1, 2, 3). Никаких изменений в публичном API относительно
+2.0.0-beta.3 — только доработки.
+
+### Fixed
+- **1.1** Актуализирован JSDoc у `QueryCache.cancelQueries`: с beta.1
+  он реально abort'ит HTTP через `AbortSignal`, старый комментарий
+  утверждал обратное.
+
+### Added
+- **2.1** `selectIsEqual?: (a, b) => boolean` в `UseFetchOptions` —
+  предотвращает ререндер при равных по значению, но новых по ссылке
+  результатах `select`. По умолчанию `Object.is`.
+- **2.2** `configureApiClient({ defaultStaleTime })` — глобальный
+  дефолт для `useFetch` / `usePaginate`. По умолчанию `0` (старое
+  поведение).
+- **2.3** `usePaginate` поддерживает `select` + `selectIsEqual` через
+  дженерик `TSelected`. Зеркало `useFetch`.
+- **2.5** Расширен JSDoc `prefetchQuery`: явно описано поведение
+  `staleTime`, inflight-дедуп, уведомление подписчиков.
+- **3.1** `useQuery(key, queryFn, options)` — низкоуровневый аналог
+  `useFetch` поверх произвольного `queryFn`. Имя для discoverability
+  у мигрантов с TanStack Query.
+- **3.2** `client.setQueryData` теперь возвращает новое значение —
+  удобно для «пропатчил → передал дальше».
+- **3.3** `useQueriesData<[T1, T2, T3]>(keys)` — пакетное чтение
+  нескольких ключей с подпиской. Для сценариев типа «бейджи на нижнем баре».
+- **3.4** `client.cancelMutations(predicate?)` — отменяет inflight
+  мутации через `AbortSignal`. Симметрично `cancelQueries`. Типичный
+  кейс — logout.
+
+### Docs
+- **1.3** README: блок про подключение `focusManager` / `onlineManager`
+  в React Native (через AppState и NetInfo).
+- **2.4** README: рекомендация ставить `mutateAsync` первым в
+  деструктуризации; `mutate` — короткий fire-and-forget.
+
 ## Сателлиты
 
 В этом репо появились два побочных пакета:

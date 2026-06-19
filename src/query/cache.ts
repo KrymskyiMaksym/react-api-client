@@ -119,7 +119,7 @@ export class QueryCache {
     return this.getState<T>(key)?.data;
   }
 
-  setData<T>(key: QueryKey, updater: T | ((prev: T | undefined) => T)): void {
+  setData<T>(key: QueryKey, updater: T | ((prev: T | undefined) => T)): T {
     const entry = this.ensureEntry<T>(key);
     const next =
       typeof updater === 'function'
@@ -133,6 +133,7 @@ export class QueryCache {
       isStale: false,
     };
     this.notify(entry);
+    return next;
   }
 
   /**
@@ -292,10 +293,16 @@ export class QueryCache {
   }
 
   /**
-   * Отменяет «привязку» inflight-промиса к ключу. Сам HTTP-запрос
-   * продолжит исполняться (executeRequest не использует AbortSignal),
-   * но его результат больше не попадёт в кэш и не уведомит подписчиков.
-   * Полезно при размонтировании / при переключении страниц.
+   * Отменяет inflight-запрос: пробрасывает abort через `AbortSignal`
+   * в `queryFn` (т.е. в `executeRequest` → `httpClient`) и отвязывает
+   * результат от ключа.
+   *
+   * Если `httpClient` уважает `signal` (`fetch` нативный, axios v1+
+   * с `signal`, и т.п.) — HTTP-запрос реально прерывается. Если
+   * игнорирует — поведение деградирует: запрос продолжит исполняться,
+   * но его ответ уже не попадёт в кэш и подписчиков не уведомит.
+   *
+   * Полезно при размонтировании / переключении страниц / logout'е.
    */
   cancelQueries(predicate: QueryKey | ((key: QueryKey) => boolean)): void {
     const match =

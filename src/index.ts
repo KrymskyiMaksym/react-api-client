@@ -148,7 +148,13 @@ export { ApiError, toApiError, businessErrorToApiError } from './errors';
 export type { ApiErrorInit } from './errors';
 
 // Global state hooks
-export { useIsFetching, useIsMutating } from './hooks';
+export {
+  useIsFetching,
+  useIsMutating,
+  useQuery,
+  useQueriesData,
+} from './hooks';
+export type { UseQueryOptions, UseQueryResult } from './hooks';
 
 // Query cache layer (Phase 1 + 2)
 export {

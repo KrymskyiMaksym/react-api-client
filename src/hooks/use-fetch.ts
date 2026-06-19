@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { getConfig, isConfigured } from '../config';
 import { callLogger } from '../logger';
 import { focusManager } from '../query/focus-manager';
 import { onlineManager } from '../query/online-manager';
@@ -44,11 +45,12 @@ export function createUseFetch<
       refetchOnFocus = false,
       refetchOnAppActive = false,
       refetchOnReconnect = false,
-      staleTime = 0,
+      staleTime = isConfigured() ? getConfig().defaultStaleTime ?? 0 : 0,
       gcTime,
       pollingInterval,
       queryKey: customKey,
       select,
+      selectIsEqual,
       onSuccess,
       onError,
     } = options;
@@ -217,12 +219,23 @@ export function createUseFetch<
     const rawData = state?.data ?? null;
 
     // select мемоизация: пересчёт только если rawData меняется ссылочно
-    // или меняется select.
+    // или меняется select. selectIsEqual позволяет structural-сравнение,
+    // чтобы равные, но новые по ссылке объекты не вызывали ререндер.
+    const lastSelectedRef = useRef<TSelected | null>(null);
     const selectedData = useMemo<TSelected | null>(() => {
-      if (rawData === null) return null;
-      if (!select) return rawData as unknown as TSelected;
-      return select(rawData);
-    }, [rawData, select]);
+      if (rawData === null) {
+        lastSelectedRef.current = null;
+        return null;
+      }
+      const next = select
+        ? select(rawData)
+        : (rawData as unknown as TSelected);
+      const prev = lastSelectedRef.current;
+      const isEqual = selectIsEqual ?? Object.is;
+      if (prev !== null && isEqual(prev, next)) return prev;
+      lastSelectedRef.current = next;
+      return next;
+    }, [rawData, select, selectIsEqual]);
 
     const status = state?.status ?? 'idle';
     const hasData = rawData !== null;

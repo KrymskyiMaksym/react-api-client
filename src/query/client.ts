@@ -1,6 +1,7 @@
 import { callLogger } from '../logger';
 import { QueryCache, type FetchOptions, type QueryFn } from './cache';
 import type { QueryKey } from './key';
+import { mutationCounter } from './mutation-counter';
 
 /**
  * Высокоуровневый фасад над QueryCache: единый объект, который удобно
@@ -22,11 +23,15 @@ export class QueryClient {
     return this.cache.getData<T>(key);
   }
 
+  /**
+   * Точечно патчит данные под ключом. Возвращает новое значение —
+   * удобно для «пропатчил → передал дальше».
+   */
   setQueryData<T>(
     key: QueryKey,
     updater: T | ((prev: T | undefined) => T),
-  ): void {
-    this.cache.setData(key, updater);
+  ): T {
+    return this.cache.setData(key, updater);
   }
 
   fetchQuery<T>(
@@ -52,6 +57,24 @@ export class QueryClient {
     this.cache.cancelQueries(predicate);
   }
 
+  /**
+   * Отменяет inflight-мутации через `AbortSignal`. Без аргумента — все.
+   * С префиксом QueryKey или функцией-предикатом — только матчинг
+   * (scope мутации = первый ключ из её `invalidateKeys`, если задан массив).
+   *
+   * Если `httpClient` уважает `signal` — HTTP-запрос реально прерывается;
+   * иначе результат отменённой мутации просто не повлияет на UI
+   * (`useMutation` останется в текущем состоянии).
+   *
+   * Типичный кейс — logout: `client.cancelMutations()` перед очисткой
+   * сессии, чтобы поздние ответы не сработали.
+   */
+  cancelMutations(
+    predicate?: QueryKey | ((scope: QueryKey | undefined) => boolean),
+  ): void {
+    mutationCounter.cancel(predicate);
+  }
+
   refetchQueries(
     predicate: QueryKey | ((key: QueryKey) => boolean),
   ): Promise<void> {
@@ -59,8 +82,18 @@ export class QueryClient {
   }
 
   /**
-   * Кладёт запрос в кэш, не пробрасывая ошибки. Подходит для оптимистичной
-   * подгрузки следующего экрана при наведении / долгом тапе.
+   * Кладёт запрос в кэш, не пробрасывая ошибки. Подходит для
+   * оптимистичной подгрузки следующего экрана при наведении / долгом тапе.
+   *
+   * Поведение:
+   * - **`staleTime`**: учитывается. Если данные ещё свежие — запрос не
+   *   отправляется, promise резолвится сразу.
+   * - **`inflight`**: если по ключу уже идёт запрос, prefetch присоединяется
+   *   к нему (dedupe). Не создаёт второй HTTP-вызов.
+   * - **Подписчики**: если на ключ подписан `useFetch`, успешный prefetch
+   *   обновит его `data` (через notify подписчиков). При ошибке — статус
+   *   подписчика тоже обновится (`error`).
+   * - **Возвращаемый promise**: всегда успешный — ошибки не пробрасываются.
    */
   prefetchQuery<T>(
     key: QueryKey,

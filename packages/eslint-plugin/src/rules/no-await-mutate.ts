@@ -19,7 +19,7 @@ export const noAwaitMutate = createRule({
     docs: {
       description:
         'mutate() returns void; await it has no effect. Use mutateAsync for awaitable mutations.',
-      recommended: 'error',
+      recommended: 'recommended',
     },
     fixable: 'code',
     schema: [],
