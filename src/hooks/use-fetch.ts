@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { callLogger } from '../logger';
 import { focusManager } from '../query/focus-manager';
 import { onlineManager } from '../query/online-manager';
 import { hashQueryKey, type QueryKey } from '../query/key';
@@ -118,12 +119,14 @@ export function createUseFetch<
 
     const runFetch = useCallback(
       async (force: boolean) => {
+        callLogger('onFetchStart', queryKey);
         try {
           const data = await cache.fetch(queryKey, queryFn, {
             staleTime,
             gcTime,
             force,
           });
+          callLogger('onFetchSuccess', queryKey, data);
           // onSuccess / onError — на основе бизнес-статуса
           if (lastNotifiedRef.current.success !== data) {
             lastNotifiedRef.current.success = data;
@@ -134,6 +137,7 @@ export function createUseFetch<
             );
           }
         } catch (err) {
+          callLogger('onFetchError', queryKey, err);
           const e = err as Error;
           const hash = `${e.name}:${e.message}`;
           if (lastNotifiedRef.current.errorHash !== hash) {

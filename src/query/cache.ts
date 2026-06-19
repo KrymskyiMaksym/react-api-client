@@ -21,6 +21,12 @@ type QueryEntry<T> = {
   gcTimer: ReturnType<typeof setTimeout> | null;
   staleTime: number;
   gcTime: number;
+  /**
+   * Последний queryFn, переданный в fetch для этого ключа.
+   * Используется refetchQueries: позволяет перезапустить запрос,
+   * не зная queryFn из caller'а (например, push-handler).
+   */
+  lastQueryFn: QueryFn<T> | null;
 };
 
 export type QueryFnContext = { signal: AbortSignal };
@@ -89,6 +95,7 @@ export class QueryCache {
         inflight: null,
         inflightController: null,
         gcTimer: null,
+        lastQueryFn: null,
         staleTime: staleTime ?? DEFAULT_STALE_TIME,
         gcTime: gcTime ?? DEFAULT_GC_TIME,
       };
@@ -181,6 +188,10 @@ export class QueryCache {
       !entry.state.isStale &&
       Date.now() - entry.state.updatedAt < staleTime;
 
+    // Запоминаем queryFn для refetchQueries (используется push-handler'ами
+    // и client.refetchQueries без знания queryFn).
+    entry.lastQueryFn = queryFn as QueryFn<unknown> as QueryFn<T>;
+
     if (!options.force && isFresh && entry.state.data !== undefined) {
       return entry.state.data;
     }
@@ -255,6 +266,32 @@ export class QueryCache {
   }
 
   /**
+   * Перезапускает все записи, матчинг predicate, у которых сохранён
+   * `lastQueryFn` (т.е. их хоть раз кто-то загрузил через `fetch`).
+   * Возвращает promise, который резолвится когда все запросы завершились.
+   * Ошибки отдельных запросов проглатываются — общий promise успешный.
+   */
+  refetchQueries(
+    predicate: QueryKey | ((key: QueryKey) => boolean),
+  ): Promise<void> {
+    const match =
+      typeof predicate === 'function'
+        ? predicate
+        : (k: QueryKey) => matchQueryKey(predicate, k);
+    const promises: Promise<unknown>[] = [];
+    for (const entry of this.entries.values()) {
+      if (!match(entry.key)) continue;
+      if (!entry.lastQueryFn) continue;
+      promises.push(
+        this.fetch(entry.key, entry.lastQueryFn, { force: true }).catch(
+          () => undefined,
+        ),
+      );
+    }
+    return Promise.all(promises).then(() => undefined);
+  }
+
+  /**
    * Отменяет «привязку» inflight-промиса к ключу. Сам HTTP-запрос
    * продолжит исполняться (executeRequest не использует AbortSignal),
    * но его результат больше не попадёт в кэш и не уведомит подписчиков.
@@ -299,6 +336,29 @@ export class QueryCache {
       }
     }
     if (removed) this.notifyGlobal();
+  }
+
+  /**
+   * Количество inflight-запросов в кэше, опционально отфильтрованных
+   * по predicate. Используется `useIsFetching()` для глобального
+   * индикатора загрузки.
+   */
+  countFetching(
+    predicate?: QueryKey | ((key: QueryKey) => boolean),
+  ): number {
+    const match = !predicate
+      ? () => true
+      : typeof predicate === 'function'
+      ? predicate
+      : (k: QueryKey) => matchQueryKey(predicate, k);
+    let n = 0;
+    for (const entry of this.entries.values()) {
+      // считаем по status === 'loading' (не по entry.inflight), потому что
+      // notify летит до выставления inflight — иначе useIsFetching
+      // пропустит начало запроса.
+      if (entry.state.status === 'loading' && match(entry.key)) n++;
+    }
+    return n;
   }
 
   /** Только для тестов / DevTools. */

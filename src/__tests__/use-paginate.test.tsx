@@ -2,7 +2,7 @@ import { act, render, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { apiPaginate } from '../index';
+import apiClient, { apiMutation, apiPaginate } from '../index';
 import { configureApiClient } from '../config';
 import {
   ApiClientProvider,
@@ -88,6 +88,53 @@ describe('usePaginate (phase 4)', () => {
     await waitFor(() => expect(snapshot?.currentPage).toBe(1));
     // первая страница уже в кэше → сетевого запроса не было
     expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  it('invalidateKeys по префиксу пагинации инвалидирует ВСЕ страницы', async () => {
+    void apiClient;
+    const get = vi.fn().mockImplementation((url: string, cfg: { params: { page: number } }) => {
+      if (url === '/touch') return Promise.resolve({ ok: true });
+      return Promise.resolve({
+        data: [{ id: cfg.params.page }],
+        total: 100,
+      } as ListResponse);
+    });
+    const request = vi.fn().mockResolvedValue({ ok: true });
+    configureApiClient({
+      httpClient: { get, request } as IHttpClient,
+    });
+
+    const api = apiPaginate<ListResponse, { id: number }[]>('/orders');
+    const touch = apiMutation<{ ok: true }, void>('/touch', { method: 'POST' });
+
+    let snap: UsePaginateResult<{ id: number }[]> | null = null;
+    let mutateFn: (() => void) | null = null;
+    function Screen() {
+      snap = api.usePaginate(undefined, {
+        initialLimit: 10,
+        staleTime: 60_000,
+      });
+      mutateFn = touch.useMutation({
+        invalidateKeys: [['__paginate__', '/orders']],
+      }).mutate;
+      return null;
+    }
+
+    withProvider(createElement(Screen), client);
+    await waitFor(() => expect(snap?.data[0]?.id).toBe(1));
+
+    // загружаем 2-ю страницу
+    await act(async () => {
+      await snap!.fetchNextPage();
+    });
+    await waitFor(() => expect(snap?.currentPage).toBe(2));
+    expect(get).toHaveBeenCalledTimes(2);
+
+    // mutate → должно пометить обе страницы stale → текущая (2) рефетчится
+    await act(async () => {
+      mutateFn!();
+    });
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(3));
   });
 
   it('prefetchNextPage кладёт страницу в кэш не меняя currentPage', async () => {

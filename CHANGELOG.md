@@ -4,6 +4,48 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [2.0.0-beta.2]
+
+Приоритет 2 + 3 из `api-client-package-improvements.md` (кроме
+3.1 React DevTools Panel и 3.4 ESLint-плагин — это отдельные пакеты).
+
+### Added
+- **2.1 `refetchQueries(predicate)`** — `QueryCache` сохраняет
+  `lastQueryFn` в каждой записи; `client.refetchQueries(['orders'])`
+  перезапускает все матчинг запросы без знания queryFn из caller'а.
+- **2.2 `useIsFetching` / `useIsMutating`** — хуки для глобального
+  индикатора загрузки. Опционально принимают predicate/префикс.
+  Реализованы через `cache.subscribeAll` и отдельный `mutationCounter`.
+- **2.3 `client.prefetchQuery(key, queryFn, options)`** — `fetchQuery`,
+  который не бросает при ошибке. Для оптимистичной подгрузки данных
+  следующего экрана.
+- **2.4 `invalidateKeys` принимает фабрику предиката** —
+  `(vars, data) => (key: QueryKey) => boolean`. Удобно для «инвалидируй
+  всё, где встречается этот orderId, в любой позиции ключа».
+- **2.5** Покрыто тестом и задокументировано: `invalidateKeys` по
+  префиксу `['__paginate__', '/orders']` инвалидирует все страницы
+  пагинации одной операцией.
+- **3.2 `ApiClientLogger`** — `configureApiClient({ logger: {...} })`.
+  Колбэки `onFetchStart/Success/Error`, `onInvalidate`,
+  `onMutationStart/Success/Error`. Ошибки внутри колбэков
+  проглатываются — логгер не ломает приложение.
+
+### Docs
+- **2.6** README: раздел `mutate` vs `mutateAsync` с примерами,
+  когда что использовать.
+- **3.3** README: SSR/hydrate-паттерн на базе `dehydrate`/`hydrate`.
+
+### Tests
+- +13 новых тестов (94 всего, было 81):
+  - `refetch-prefetch.test.ts` (4)
+  - `use-is-fetching.test.tsx` (3)
+  - `logger.test.tsx` (4)
+  - `use-mutation.test.tsx` +1 (предикат-фабрика)
+  - `use-paginate.test.tsx` +1 (инвалидация всех страниц)
+
+### Backward compatibility
+- Все доработки аддитивные. Старый код работает без изменений.
+
 ## [2.0.0-beta.1]
 
 Приоритет 1 из `api-client-package-improvements.md` — доработки,

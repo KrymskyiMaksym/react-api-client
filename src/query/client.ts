@@ -1,3 +1,4 @@
+import { callLogger } from '../logger';
 import { QueryCache, type FetchOptions, type QueryFn } from './cache';
 import type { QueryKey } from './key';
 
@@ -39,7 +40,8 @@ export class QueryClient {
   invalidateQueries(
     predicate: QueryKey | ((key: QueryKey) => boolean),
   ): void {
-    this.cache.invalidate(predicate);
+    const hashes = this.cache.invalidate(predicate);
+    if (hashes.length > 0) callLogger('onInvalidate', hashes);
   }
 
   removeQueries(predicate: QueryKey | ((key: QueryKey) => boolean)): void {
@@ -48,6 +50,27 @@ export class QueryClient {
 
   cancelQueries(predicate: QueryKey | ((key: QueryKey) => boolean)): void {
     this.cache.cancelQueries(predicate);
+  }
+
+  refetchQueries(
+    predicate: QueryKey | ((key: QueryKey) => boolean),
+  ): Promise<void> {
+    return this.cache.refetchQueries(predicate);
+  }
+
+  /**
+   * Кладёт запрос в кэш, не пробрасывая ошибки. Подходит для оптимистичной
+   * подгрузки следующего экрана при наведении / долгом тапе.
+   */
+  prefetchQuery<T>(
+    key: QueryKey,
+    queryFn: QueryFn<T>,
+    options?: FetchOptions,
+  ): Promise<void> {
+    return this.cache.fetch(key, queryFn, options).then(
+      () => undefined,
+      () => undefined,
+    );
   }
 }
 

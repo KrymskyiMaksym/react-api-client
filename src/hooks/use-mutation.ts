@@ -1,8 +1,10 @@
 import { useCallback, useState } from 'react';
 
+import { callLogger } from '../logger';
 import { getQueryClient } from '../query/client';
 import { matchQueryKey, type QueryKey } from '../query/key';
-import { executeRequest } from '../utils';
+import { mutationCounter } from '../query/mutation-counter';
+import { buildEndpoint, executeRequest } from '../utils';
 
 import type {
   RequestConfig,
@@ -61,13 +63,23 @@ export function createUseMutation<
       (vars: RequestParamsType, result: RT) => {
         if (!invalidateKeys) return;
         const client = getQueryClient();
-        const keys =
-          typeof invalidateKeys === 'function'
-            ? invalidateKeys(vars, result)
-            : invalidateKeys;
-        if (keys.length === 0) return;
+        // Прямой массив
+        if (Array.isArray(invalidateKeys)) {
+          if (invalidateKeys.length === 0) return;
+          client.invalidateQueries((k: QueryKey) =>
+            invalidateKeys.some(prefix => matchQueryKey(prefix, k)),
+          );
+          return;
+        }
+        // Функция — либо вернёт массив ключей, либо предикат
+        const out = invalidateKeys(vars, result);
+        if (typeof out === 'function') {
+          client.invalidateQueries(out);
+          return;
+        }
+        if (out.length === 0) return;
         client.invalidateQueries((k: QueryKey) =>
-          keys.some(prefix => matchQueryKey(prefix, k)),
+          out.some(prefix => matchQueryKey(prefix, k)),
         );
       },
       [invalidateKeys],
@@ -79,6 +91,16 @@ export function createUseMutation<
         setIsSuccess(false);
         setIsError(false);
         setError(null);
+
+        // scope для useIsMutating(prefix): если у мутации задан
+        // invalidateKeys-массив — используем первый ключ как scope.
+        const scope =
+          Array.isArray(invalidateKeys) && invalidateKeys.length > 0
+            ? (invalidateKeys[0] as QueryKey)
+            : undefined;
+        const mutationId = mutationCounter.start(scope);
+        const endpointId = buildEndpoint<RequestParamsType>(endpoint, variables);
+        callLogger('onMutationStart', endpointId, variables);
 
         let context: TContext | undefined;
 
@@ -98,6 +120,7 @@ export function createUseMutation<
 
           if (result.status) {
             setIsSuccess(true);
+            callLogger('onMutationSuccess', endpointId, variables, result);
             // setQueryData — точечный патч кэша
             if (setQueryData) {
               setQueryData(getQueryClient(), variables, result);
@@ -112,6 +135,7 @@ export function createUseMutation<
             const err = new Error(result.message ?? 'Mutation failed');
             setIsError(true);
             setError(err);
+            callLogger('onMutationError', endpointId, variables, err);
             if (onError) {
               await onError(err, variables, context);
             }
@@ -127,6 +151,7 @@ export function createUseMutation<
           setError(error);
           setIsError(true);
           setIsSuccess(false);
+          callLogger('onMutationError', endpointId, variables, error);
 
           if (onError) {
             await onError(error, variables, context);
@@ -137,6 +162,7 @@ export function createUseMutation<
 
           throw error;
         } finally {
+          mutationCounter.stop(mutationId);
           setIsLoading(false);
         }
       },

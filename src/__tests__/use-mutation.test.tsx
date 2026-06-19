@@ -63,6 +63,39 @@ describe('useMutation (phase 3)', () => {
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
   });
 
+  it('invalidateKeys принимает предикат-фабрику (vars, data) => (key) => boolean', async () => {
+    let counter = 0;
+    const get = vi.fn().mockImplementation(() => Promise.resolve({ n: ++counter }));
+    const request = vi.fn().mockResolvedValue({ ok: true });
+    configureApiClient({ httpClient: makeHttpClient(get, request) });
+
+    // два кэша с orderId внутри — хотим инвалидировать оба одной мутацией
+    const orderApi = apiClient<{ n: number }, void>('/order/42');
+    const sidebarApi = apiClient<{ n: number }, void>('/sidebar/order/42');
+    const touchApi = apiMutation<{ ok: true }, { id: number }>('/touch', {
+      method: 'POST',
+    });
+
+    let mutateFn: ((v: { id: number }) => void) | null = null;
+    function Screen() {
+      orderApi.useFetch(undefined, { staleTime: 60_000 });
+      sidebarApi.useFetch(undefined, { staleTime: 60_000 });
+      const { mutate } = touchApi.useMutation({
+        invalidateKeys: vars => key =>
+          JSON.stringify(key).includes(String(vars.id)),
+      });
+      mutateFn = mutate;
+      return null;
+    }
+    withProvider(createElement(Screen), client);
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+
+    act(() => {
+      mutateFn!({ id: 42 });
+    });
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(4));
+  });
+
   it('setQueryData: точечный патч кэша после успеха', async () => {
     const get = vi.fn().mockResolvedValue({ id: 5, name: 'old' });
     const request = vi.fn().mockResolvedValue({ id: 5, name: 'new' });

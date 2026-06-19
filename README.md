@@ -290,6 +290,70 @@ const httpClient = {
 };
 ```
 
+## `mutate` vs `mutateAsync`
+
+`useMutation` возвращает оба варианта вызова — намеренно с разными типами.
+
+```ts
+const { mutate, mutateAsync } = api.useMutation();
+
+// ❌ Анти-паттерн: mutate возвращает void, не Promise.
+//    `await` отдаст undefined; try/catch не сработает.
+await mutate({ id: 1 });
+
+// ✅ Правильно: для последовательной логики или try/catch — mutateAsync.
+try {
+  const result = await mutateAsync({ id: 1 });
+} catch (e) {
+  // обработка
+}
+
+// ✅ Правильно: для fire-and-forget (кнопка с onClick) — mutate.
+<Button onPress={() => mutate({ id: 1 })} />;
+```
+
+Если включён `throwOnError: true` — для критичных мутаций используй
+`mutateAsync` и обёртку `try/catch`, иначе ошибка не будет
+поймана в caller'е.
+
+## SSR / hydrate
+
+Кэш сериализуется через `cache.dehydrate()` и восстанавливается через
+`cache.hydrate(state)`. Стандартный SSR-паттерн:
+
+```ts
+// На сервере
+const client = new QueryClient();
+await client.fetchQuery(['orders'], () => fetchOrders());
+const dehydratedState = client.cache.dehydrate();
+
+// Встраиваем в HTML
+res.send(`
+  <html>
+    <body>
+      <div id="root">${renderToString(<App />)}</div>
+      <script>
+        window.__APP_DATA__ = ${JSON.stringify(dehydratedState)};
+      </script>
+    </body>
+  </html>
+`);
+
+// На клиенте
+const client = new QueryClient();
+client.cache.hydrate(window.__APP_DATA__);
+ReactDOM.hydrateRoot(
+  document.getElementById('root'),
+  <ApiClientProvider client={client}>
+    <App />
+  </ApiClientProvider>,
+);
+```
+
+Гидратированные данные сразу помечаются как `isStale: true` → подписанные
+`useFetch` отдают серверные данные мгновенно и в фоне делают refetch для
+проверки актуальности.
+
 ## License
 
 MIT

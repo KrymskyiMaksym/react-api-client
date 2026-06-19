@@ -143,13 +143,19 @@ export type UseMutationOptions<TData, TVariables, TContext = unknown> = {
     context: TContext | undefined,
   ) => void | Promise<void>;
   /**
-   * Ключи кэша, которые надо инвалидировать после успеха.
-   * Может быть массивом ключей или функцией, считающей их по vars/data.
-   * Каждый ключ матчится по префиксу (см. matchQueryKey).
+   * Что инвалидировать в кэше после успешной мутации.
+   *
+   * Три формы:
+   * - `QueryKey[]` — массив префиксов; матч по `matchQueryKey`
+   * - `(vars, data) => QueryKey[]` — динамический список префиксов
+   * - `(vars, data) => (key: QueryKey) => boolean` — произвольный предикат
+   *   по каждому ключу кэша (например «инвалидируй всё, где встречается
+   *   этот orderId, в любой позиции ключа»).
    */
   invalidateKeys?:
     | QueryKey[]
-    | ((vars: TVariables, data: TData) => QueryKey[]);
+    | ((vars: TVariables, data: TData) => QueryKey[])
+    | ((vars: TVariables, data: TData) => (key: QueryKey) => boolean);
   /**
    * Точечно патчит кэш после успеха — до invalidate. Удобно для
    * «сервер вернул свежий объект, положим его прямо в ['orders', id]».
@@ -193,6 +199,22 @@ export interface IHttpClient {
   ): Promise<T>;
 }
 
+/**
+ * Колбэки для логирования / отладки. Все опциональны.
+ * Пробрасываются в Reactotron / Flipper или просто в console.log.
+ * Ошибки в самих колбэках проглатываются — логгер не должен ломать
+ * приложение.
+ */
+export type ApiClientLogger = {
+  onFetchStart?: (key: readonly unknown[]) => void;
+  onFetchSuccess?: (key: readonly unknown[], data: unknown) => void;
+  onFetchError?: (key: readonly unknown[], error: unknown) => void;
+  onInvalidate?: (invalidatedHashes: string[]) => void;
+  onMutationStart?: (endpoint: string, vars: unknown) => void;
+  onMutationSuccess?: (endpoint: string, vars: unknown, data: unknown) => void;
+  onMutationError?: (endpoint: string, vars: unknown, error: unknown) => void;
+};
+
 // API Client configuration
 export type ApiClientConfig = {
   httpClient: IHttpClient;
@@ -205,6 +227,8 @@ export type ApiClientConfig = {
    * `await *.fetch()` обёрнуты в try/catch.
    */
   throwOnError?: boolean;
+  /** Опциональный логгер для отладки. */
+  logger?: ApiClientLogger;
 };
 
 // API return types

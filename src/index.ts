@@ -85,7 +85,21 @@ function apiMutation<
 }
 
 /**
- * Creates an API client for paginated requests
+ * Creates an API client for paginated requests.
+ *
+ * Каждая страница хранится в кэше под собственным подключом
+ * `['__paginate__', endpoint, params, { page, limit }]`. Это значит, что
+ * мутация может одной операцией пометить stale **все страницы** списка:
+ *
+ * ```ts
+ * confirmOrder.useMutation({
+ *   invalidateKeys: [['__paginate__', '/orders/archive']],
+ * });
+ * ```
+ *
+ * Префикс матчится по `matchQueryKey` → подключи каждой страницы тоже
+ * считаются совпадающими.
+ *
  * @param endpoint - URL string or function that generates URL from params
  * @param fetchConfig - Request configuration
  * @param options - Pagination options (data/total extractors)
@@ -133,6 +147,9 @@ export { configureApiClient, getConfig, isConfigured } from './config';
 export { ApiError, toApiError, businessErrorToApiError } from './errors';
 export type { ApiErrorInit } from './errors';
 
+// Global state hooks
+export { useIsFetching, useIsMutating } from './hooks';
+
 // Query cache layer (Phase 1 + 2)
 export {
   QueryCache,
@@ -174,5 +191,6 @@ export type {
   UsePaginateOptions,
   UsePaginateResult,
   ApiClientConfig,
+  ApiClientLogger,
   IHttpClient,
 } from './types';
