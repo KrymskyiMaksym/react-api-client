@@ -50,9 +50,12 @@ export function createUsePaginate<
       queryKey: customKey,
       select,
       selectIsEqual,
+      mode = 'page',
+      getItemKey,
       onSuccess,
       onError,
     } = hookOptions;
+    const isInfinite = mode === 'infinite';
 
     const client = getQueryClient();
     const cache = client.cache;
@@ -61,6 +64,9 @@ export function createUsePaginate<
     const [currentPage, setCurrentPage] = useState(initialPage);
     const [isFetchingNextPage, setIsFetchingNextPage] = useState(false);
     const [error, setError] = useState<Error | null>(null);
+    // Только для mode: 'infinite'. Список номеров загруженных страниц
+    // в порядке загрузки. Данные берутся из кэша на каждый рендер.
+    const [loadedPages, setLoadedPages] = useState<number[]>([initialPage]);
 
     const dataExtractor = useMemo(
       () =>
@@ -119,14 +125,22 @@ export function createUsePaginate<
       [serializedParams, limit],
     );
 
-    // Подписка на ключ текущей страницы для rerender.
+    // Подписка: в page-режиме — только на текущую страницу;
+    // в infinite — на все загруженные (любая инвалидация → ререндер).
     const [, forceRender] = useState(0);
     const rerender = useCallback(() => forceRender(v => v + 1), []);
+    const subscribedPages = isInfinite ? loadedPages : [currentPage];
+    const subscribedPagesKey = subscribedPages.join(',');
     useEffect(() => {
       if (!enabled) return;
-      const unsub = cache.subscribe(pageKey(currentPage), rerender);
-      return unsub;
-    }, [cache, enabled, hashQueryKey(pageKey(currentPage)), rerender]);
+      const unsubs = subscribedPages.map(p =>
+        cache.subscribe(pageKey(p), rerender),
+      );
+      return () => {
+        for (const u of unsubs) u();
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cache, enabled, subscribedPagesKey, rerender]);
 
     const previousPageKeyRef = useRef<QueryKey | null>(null);
 
@@ -153,6 +167,11 @@ export function createUsePaginate<
 
           previousPageKeyRef.current = pageKey(page);
           setCurrentPage(page);
+          if (isInfinite && isNextPage) {
+            setLoadedPages(prev =>
+              prev.includes(page) ? prev : [...prev, page],
+            );
+          }
         } catch (err) {
           const e = err as Error;
           setError(e);
@@ -161,29 +180,55 @@ export function createUsePaginate<
           if (isNextPage) setIsFetchingNextPage(false);
         }
       },
-      [cache, pageKey, pageQueryFn, staleTime, gcTime, onSuccess, onError],
+      [
+        cache,
+        pageKey,
+        pageQueryFn,
+        staleTime,
+        gcTime,
+        onSuccess,
+        onError,
+        isInfinite,
+      ],
     );
 
-    // Первичный mount + смена params.
+    // Первичный mount + смена params: сбрасываем аккумулятор и
+    // запрашиваем заново page = initialPage.
     useEffect(() => {
       if (!enabled) return;
-      void runFetchPage(initialPage, false);
       setCurrentPage(initialPage);
+      if (isInfinite) setLoadedPages([initialPage]);
+      void runFetchPage(initialPage, false);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [enabled, serializedParams, initialPage]);
 
     // Auto-refetch при isStale (внешний invalidateQueries).
+    // В page-режиме рефетчим текущую страницу; в infinite — все loaded.
     const currentState = cache.getState<RT>(pageKey(currentPage));
     const isStale = currentState?.isStale ?? false;
     const hasFetchedData = currentState?.data !== undefined;
     useEffect(() => {
       if (!enabled) return;
-      if (isStale && hasFetchedData) void runFetchPage(currentPage, false);
-    }, [enabled, isStale, hasFetchedData, currentPage, runFetchPage]);
+      if (!isStale || !hasFetchedData) return;
+      if (isInfinite) {
+        // Пересобираем все загруженные страницы.
+        for (const p of loadedPages) {
+          void cache.fetch(pageKey(p), pageQueryFn(p), {
+            staleTime: 0,
+            gcTime,
+            force: true,
+          });
+        }
+      } else {
+        void runFetchPage(currentPage, false);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [enabled, isStale, hasFetchedData, currentPage]);
 
-    // Источник данных для UI с учётом keepPreviousData.
+    // Источник данных для UI.
     const currentResult = currentState?.data;
     const usingPlaceholder =
+      !isInfinite &&
       keepPreviousData &&
       !currentResult &&
       previousPageKeyRef.current !== null;
@@ -191,10 +236,49 @@ export function createUsePaginate<
       ? cache.getData<RT>(previousPageKeyRef.current as QueryKey)
       : currentResult;
 
-    const rawData: TData =
-      effectiveResult && effectiveResult.status
-        ? dataExtractor(effectiveResult as ResponseType)
-        : ([] as unknown as TData);
+    // Аккумулированный массив для infinite-режима. Собирается из
+    // последовательно загруженных страниц, опционально дедуплицируется
+    // через getItemKey. Зависит от subscribedPagesKey и от данных в
+    // кэше — этого достаточно, потому что подписка на каждую страницу
+    // уже триггерит ререндер.
+    const rawData: TData = useMemo(() => {
+      if (!isInfinite) {
+        return effectiveResult && effectiveResult.status
+          ? dataExtractor(effectiveResult as ResponseType)
+          : ([] as unknown as TData);
+      }
+      const acc: unknown[] = [];
+      const seen = getItemKey ? new Set<string | number>() : null;
+      for (const p of loadedPages) {
+        const pageResult = cache.getData<RT>(pageKey(p));
+        if (!pageResult || !pageResult.status) continue;
+        const items = dataExtractor(pageResult as ResponseType) as unknown[];
+        if (!seen) {
+          acc.push(...items);
+          continue;
+        }
+        for (const item of items) {
+          const k = getItemKey!(
+            item as TData extends Array<infer U> ? U : never,
+          );
+          if (seen.has(k)) continue;
+          seen.add(k);
+          acc.push(item);
+        }
+      }
+      return acc as unknown as TData;
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+      isInfinite,
+      effectiveResult,
+      subscribedPagesKey,
+      // данные в кэше не реактивны напрямую — но `rerender` уже
+      // выставлен из subscribe; пересчёт идёт на каждом ререндере.
+      // Включаем currentState чтобы reuse work при текущей странице.
+      currentState?.updatedAt,
+      dataExtractor,
+      getItemKey,
+    ]);
 
     const lastSelectedRef = useRef<TSelected | null>(null);
     const data: TSelected = useMemo(() => {
@@ -215,7 +299,7 @@ export function createUsePaginate<
     const total = totalCount;
     const totalPages = totalCount !== null ? Math.ceil(totalCount / limit) : null;
     const hasNextPage = totalPages !== null && currentPage < totalPages;
-    const hasPreviousPage = currentPage > 1;
+    const hasPreviousPage = !isInfinite && currentPage > 1;
 
     const status = currentState?.status ?? 'idle';
     const isLoading = status === 'loading' && !hasFetchedData && !usingPlaceholder;
@@ -226,9 +310,11 @@ export function createUsePaginate<
     }, [hasNextPage, currentPage, runFetchPage]);
 
     const fetchPreviousPage = useCallback(async () => {
+      // В infinite-режиме предыдущая страница уже в data; no-op.
+      if (isInfinite) return;
       if (!hasPreviousPage) return;
       await runFetchPage(currentPage - 1, false);
-    }, [hasPreviousPage, currentPage, runFetchPage]);
+    }, [isInfinite, hasPreviousPage, currentPage, runFetchPage]);
 
     const prefetchNextPage = useCallback(async () => {
       if (!hasNextPage) return;
@@ -241,12 +327,33 @@ export function createUsePaginate<
     }, [hasNextPage, currentPage, cache, pageKey, pageQueryFn, staleTime, gcTime]);
 
     const refetch = useCallback(async () => {
+      if (isInfinite) {
+        // Перезапрашиваем все загруженные страницы.
+        await Promise.all(
+          loadedPages.map(p =>
+            cache.fetch(pageKey(p), pageQueryFn(p), {
+              staleTime: 0,
+              gcTime,
+              force: true,
+            }),
+          ),
+        );
+        return;
+      }
       await cache.fetch(pageKey(currentPage), pageQueryFn(currentPage), {
         staleTime: 0,
         gcTime,
         force: true,
       });
-    }, [cache, pageKey, pageQueryFn, currentPage, gcTime]);
+    }, [
+      isInfinite,
+      loadedPages,
+      cache,
+      pageKey,
+      pageQueryFn,
+      currentPage,
+      gcTime,
+    ]);
 
     const reset = useCallback(() => {
       // Удаляем все страницы текущего префикса.
@@ -259,8 +366,9 @@ export function createUsePaginate<
       });
       previousPageKeyRef.current = null;
       setCurrentPage(initialPage);
+      if (isInfinite) setLoadedPages([initialPage]);
       void runFetchPage(initialPage, false);
-    }, [cache, keyPrefix, initialPage, runFetchPage]);
+    }, [cache, keyPrefix, initialPage, runFetchPage, isInfinite]);
 
     return {
       data,

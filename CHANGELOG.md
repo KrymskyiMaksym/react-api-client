@@ -4,6 +4,29 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [2.2.0]
+
+Infinite-scroll режим в `usePaginate`. Полностью обратно-совместимо
+(opt-in через `mode: 'infinite'`).
+
+### Added
+- `UsePaginateOptions.mode: 'page' | 'infinite'` — режим работы.
+  По умолчанию `'page'` (текущее поведение).
+- `UsePaginateOptions.getItemKey?: (item) => string | number` —
+  дедупликация элементов между страницами в infinite-режиме.
+- В `mode: 'infinite'`:
+  - `data` накапливает все загруженные страницы;
+  - `fetchNextPage()` добавляет в конец;
+  - смена `params` / `reset()` очищают аккумулятор;
+  - `refetch()` пересобирает все загруженные страницы;
+  - инвалидация префикса пагинации триггерит рефетч всех страниц;
+  - `fetchPreviousPage()` — no-op, `hasPreviousPage = false`;
+  - `keepPreviousData` игнорируется.
+- README: раздел Pagination modes с примером `FlatList.onEndReached`.
+
+### Tests
+- +8 тестов на infinite-режим (132/132 всего).
+
 ## [2.1.0]
 
 Backend-agnostic режим. Полностью обратно-совместимо.

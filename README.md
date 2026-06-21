@@ -311,6 +311,63 @@ const httpClient = {
 };
 ```
 
+## Pagination modes
+
+`usePaginate` поддерживает два режима через опцию `mode`:
+
+| Mode | `data` | Сценарий |
+|---|---|---|
+| `'page'` (default) | массив **одной текущей** страницы | классическая навигация 1 → 2 → 3 с заменой содержимого |
+| `'infinite'` | массив всех **загруженных** страниц | infinite scroll, `FlatList.onEndReached` |
+
+### Page mode (default)
+
+```tsx
+const { data, fetchNextPage, fetchPreviousPage, currentPage, totalPages } =
+  usersApi.usePaginate(undefined, { initialLimit: 20 });
+// fetchNextPage → currentPage++, data = массив 2-й страницы (1-я исчезает)
+```
+
+### Infinite mode
+
+```tsx
+import { FlatList } from 'react-native';
+
+const clientsApi = apiPaginate<ClientsListResponse, ClientListItem[]>('/clients');
+
+function ClientsList() {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
+    clientsApi.usePaginate(params, {
+      mode: 'infinite',
+      getItemKey: c => c.id,
+      staleTime: 30_000,
+    });
+
+  return (
+    <FlatList
+      data={data}
+      keyExtractor={item => String(item.id)}
+      renderItem={({ item }) => <ClientRow client={item} />}
+      onEndReached={hasNextPage ? () => void fetchNextPage() : undefined}
+      onEndReachedThreshold={0.4}
+      ListFooterComponent={isFetchingNextPage ? <Loader /> : null}
+      refreshing={isLoading}
+    />
+  );
+}
+```
+
+**Поведение `mode: 'infinite'`:**
+
+- `data` — массив всех загруженных страниц `[...page1, ...page2, ...]`.
+- `fetchNextPage()` запрашивает следующую страницу и **добавляет** в конец.
+- `getItemKey` дедуплицирует элементы (если backend сдвинул индексы между запросами); без него совпадения остаются в массиве.
+- Смена `params` или `reset()` — аккумулятор очищается, грузится `initialPage` заново.
+- `refetch()` перезапрашивает **все** загруженные страницы (1..currentPage) и пересобирает `data` без дублирования.
+- Мутация с `invalidateKeys: [['__paginate__', endpoint]]` — то же, что `refetch()` (все страницы помечаются stale, активный хук догоняет).
+- `fetchPreviousPage()` — no-op (`hasPreviousPage` всегда `false`).
+- `keepPreviousData` игнорируется (в infinite не имеет смысла).
+
 ## Backend integrations
 
 С версии 2.0 пакет полностью backend-agnostic. Контракт «как

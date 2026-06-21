@@ -144,6 +144,28 @@ export type UsePaginateOptions<T, TData = unknown[], TSelected = TData> = {
   select?: (data: TData) => TSelected;
   /** Сравнение результатов `select` для предотвращения ререндеров. По умолчанию `Object.is`. */
   selectIsEqual?: (a: TSelected, b: TSelected) => boolean;
+  /**
+   * Режим работы:
+   * - `'page'` (default) — `data` всегда показывает массив одной
+   *   текущей страницы. `fetchNextPage()` заменяет содержимое.
+   * - `'infinite'` — `data` накапливает элементы всех загруженных
+   *   страниц (page 1 … currentPage). `fetchNextPage()` добавляет
+   *   следующую страницу в конец. Подходит для `FlatList.onEndReached`.
+   *
+   * В infinite-режиме `keepPreviousData` игнорируется (не имеет смысла);
+   * `fetchPreviousPage` становится no-op.
+   */
+  mode?: 'page' | 'infinite';
+  /**
+   * Только для `mode: 'infinite'`. Идентификатор элемента для
+   * дедупликации между страницами. По умолчанию дедупликации нет
+   * (элементы из page N и page N+1 присоединяются как есть).
+   *
+   * @example `(client) => client.id`
+   */
+  getItemKey?: (item: TData extends Array<infer U> ? U : unknown) =>
+    | string
+    | number;
   onSuccess?: (data: T) => void;
   onError?: (error: Error) => void;
 };
