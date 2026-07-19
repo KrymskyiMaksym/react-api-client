@@ -1,6 +1,6 @@
 {
   "name": "@krymskyimaksym/eslint-plugin-react-api-client",
-  "version": "0.3.0",
+  "version": "0.2.2",
   "description": "ESLint rules for @krymskyimaksym/react-api-client",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
