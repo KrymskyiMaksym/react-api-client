@@ -44,29 +44,39 @@ module.exports = {
 
 ## Правила (recommended)
 
-| Rule | Severity | Autofix |
-|---|---|---|
-| `no-await-mutate` | error | ✓ |
-| `no-non-serializable-params` | error | — |
-| `require-query-key-when-endpoint-is-fn` | warn | — |
+| Rule | Severity | Autofix | Type-aware |
+|---|---|---|---|
+| `no-await-mutate` | error | — | ✓ |
+| `no-non-serializable-params` | error | — | — |
+| `require-query-key-when-endpoint-is-fn` | warn | — | — |
 
 ## Описание
 
-### `no-await-mutate` (error, autofix)
+### `no-await-mutate` (error, type-aware)
 
-`mutate(...)` возвращает `void`. `await api.mutate(...)` отдаст
-`undefined` и не поймает ошибки в `try/catch`. Для последовательной
-логики или try/catch используй `mutateAsync`.
+Ругается на `await mutate(...)`, когда `mutate` возвращает `void`
+(это `useMutation().mutate`) — `await undefined` резолвится сразу и не
+ловит ошибки в `try/catch`. Для последовательной логики используй
+`mutateAsync`.
+
+Правило **type-aware**: `apiMutation().mutate` возвращает `Promise`, его
+`await` корректен, и такой вызов **не репортится**. Автофикса нет — у
+`apiMutation().mutate` нет `mutateAsync`, автозамена ломала бы сборку.
 
 ```ts
-// ❌
-await api.mutate({ id: 1 });
+// ❌ useMutation().mutate -> void
+const { mutate } = api.useMutation();
+await mutate({ id: 1 });
 
-// ✅
-await api.mutateAsync({ id: 1 });
+// ✅ mutateAsync -> Promise
+await mutateAsync({ id: 1 });
+
+// ✅ apiMutation().mutate -> Promise
+await apiMutation('/orders').mutate({ id: 1 });
 ```
 
-Autofix меняет `.mutate` на `.mutateAsync`.
+Требует `parserOptions.project`. Без типовой информации правило молча
+ничего не репортит (fail-open). Подробнее — [`docs/no-await-mutate.md`](./docs/no-await-mutate.md).
 
 ### `require-query-key-when-endpoint-is-fn` (warn)
 
