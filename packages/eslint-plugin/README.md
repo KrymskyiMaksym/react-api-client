@@ -18,8 +18,12 @@ pnpm add -D @krymskyimaksym/eslint-plugin-react-api-client
 bun add -d @krymskyimaksym/eslint-plugin-react-api-client
 ```
 
-**Peer-зависимости:** `eslint >= 8`. `@typescript-eslint/utils`
-устанавливается транзитивно (входит в `dependencies` плагина).
+**Peer-зависимости:** `eslint >= 8`, `typescript >= 4.8.4` (опционально),
+`@typescript-eslint/utils` (`^6 || ^7 || ^8`). `utils` — peer, чтобы плагин
+использовал **ту же** копию, что и парсер потребителя (иначе type-aware
+правило падает при рассинхроне utils ↔ parser, напр. utils 6 ↔ parser 8).
+Обычно `@typescript-eslint/utils` уже стоит транзитивно вместе с
+`@typescript-eslint/parser`; при отдельной установке добавьте явно.
 
 ## Подключение
 

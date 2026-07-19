@@ -2,10 +2,7 @@ import { ESLintUtils, TSESTree } from '@typescript-eslint/utils';
 import * as tsutils from 'ts-api-utils';
 import type { Type } from 'typescript';
 
-const createRule = ESLintUtils.RuleCreator(
-  name =>
-    `https://github.com/krymskyimaksym/react-api-client/tree/main/packages/eslint-plugin/docs/${name}.md`,
-);
+import { createRule } from './create-rule';
 
 /**
  * Запрещает `await <expr>.mutate(...)`, когда `.mutate` возвращает `void`
@@ -26,7 +23,7 @@ export const noAwaitMutate = createRule({
     docs: {
       description:
         'await on a void-returning mutate() has no effect; use mutateAsync for awaitable mutations.',
-      recommended: 'recommended',
+      recommended: true,
       requiresTypeChecking: true,
     },
     schema: [],

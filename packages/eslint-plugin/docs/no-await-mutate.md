@@ -35,7 +35,9 @@
 
 ## Требования
 
-Правило требует типовой информации:
+Правило требует типовой информации. Подходит и legacy `project`, и
+`projectService` (typescript-eslint v8) — способ выбирает парсер потребителя,
+правило работает с обоими:
 
 ```jsonc
 // .eslintrc
@@ -46,8 +48,25 @@
 }
 ```
 
-Если типовая информация недоступна (нет `parserOptions.project`), правило
-**молча ничего не репортит** (fail-open), чтобы не давать ложных срабатываний.
+```js
+// eslint.config.mjs (flat, typescript-eslint v8)
+export default [
+  {
+    languageOptions: {
+      parserOptions: { projectService: true },
+    },
+  },
+];
+```
+
+Если типовая информация недоступна, правило **молча ничего не репортит**
+(fail-open), чтобы не давать ложных срабатываний.
+
+`@typescript-eslint/utils` объявлен как **peerDependency**
+(`^6 || ^7 || ^8`) — правило использует ту же копию utils, что и парсер в
+проекте потребителя. Это исключает мажорный рассинхрон utils ↔ parser
+(симптом: `You have used a rule which requires parserServices to be
+generated` даже при заданном `project`).
 
 ## Примеры
 

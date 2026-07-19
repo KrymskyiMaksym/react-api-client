@@ -1,6 +1,6 @@
 {
   "name": "@krymskyimaksym/eslint-plugin-react-api-client",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "ESLint rules for @krymskyimaksym/react-api-client",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -39,7 +39,8 @@
   },
   "peerDependencies": {
     "eslint": ">=8.0.0",
-    "typescript": ">=4.7.0"
+    "typescript": ">=4.8.4",
+    "@typescript-eslint/utils": "^6.0.0 || ^7.0.0 || ^8.0.0"
   },
   "peerDependenciesMeta": {
     "typescript": {
@@ -47,14 +48,14 @@
     }
   },
   "dependencies": {
-    "@typescript-eslint/utils": "^6.19.0",
-    "ts-api-utils": "^1.3.0"
+    "ts-api-utils": "^2.0.0"
   },
   "devDependencies": {
     "@types/eslint": "^8.56.0",
     "@types/node": "^20.11.0",
-    "@typescript-eslint/parser": "^6.21.0",
-    "@typescript-eslint/rule-tester": "^6.19.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@typescript-eslint/rule-tester": "^8.0.0",
+    "@typescript-eslint/utils": "^8.0.0",
     "eslint": "^8.56.0",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3",

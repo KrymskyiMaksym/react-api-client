@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+import * as parser from '@typescript-eslint/parser';
 import { RuleTester } from '@typescript-eslint/rule-tester';
 import { afterAll, describe, it } from 'vitest';
 
@@ -13,10 +14,12 @@ RuleTester.describe = describe;
 const fixtureRoot = path.join(__dirname, '..', '..', 'tests', 'fixtures');
 
 const ruleTester = new RuleTester({
-  parser: require.resolve('@typescript-eslint/parser'),
-  parserOptions: {
-    project: './tsconfig.json',
-    tsconfigRootDir: fixtureRoot,
+  languageOptions: {
+    parser,
+    parserOptions: {
+      project: './tsconfig.json',
+      tsconfigRootDir: fixtureRoot,
+    },
   },
 });
 
@@ -39,10 +42,10 @@ const EPILOGUE = `
 }
 `;
 
-const filename = path.join(fixtureRoot, 'file.ts');
+// filename относителен tsconfigRootDir (требование rule-tester v8).
 const wrap = (body: string) => ({
   code: `${PROLOGUE}${body}${EPILOGUE}`,
-  filename,
+  filename: 'file.ts',
 });
 
 ruleTester.run('no-await-mutate', noAwaitMutate, {
@@ -73,3 +76,4 @@ ruleTester.run('no-await-mutate', noAwaitMutate, {
     },
   ],
 });
+

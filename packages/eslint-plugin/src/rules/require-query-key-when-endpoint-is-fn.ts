@@ -1,9 +1,6 @@
-import { ESLintUtils, TSESTree } from '@typescript-eslint/utils';
+import { TSESTree } from '@typescript-eslint/utils';
 
-const createRule = ESLintUtils.RuleCreator(
-  name =>
-    `https://github.com/krymskyimaksym/react-api-client/tree/main/packages/eslint-plugin/docs/${name}.md`,
-);
+import { createRule } from './create-rule';
 
 /**
  * Если `apiClient(fn, ...)` создан с endpoint-функцией, и где-то
@@ -24,7 +21,7 @@ export const requireQueryKeyWhenEndpointIsFn = createRule({
     docs: {
       description:
         'When apiClient is created from an endpoint function, useFetch should specify explicit queryKey.',
-      recommended: 'recommended',
+      recommended: true,
     },
     schema: [],
     messages: {

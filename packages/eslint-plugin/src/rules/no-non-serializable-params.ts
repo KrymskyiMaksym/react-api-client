@@ -1,9 +1,6 @@
-import { ESLintUtils, TSESTree } from '@typescript-eslint/utils';
+import { TSESTree } from '@typescript-eslint/utils';
 
-const createRule = ESLintUtils.RuleCreator(
-  name =>
-    `https://github.com/krymskyimaksym/react-api-client/tree/main/packages/eslint-plugin/docs/${name}.md`,
-);
+import { createRule } from './create-rule';
 
 /**
  * Запрещает несериализуемые значения в `params` для `useFetch` /
@@ -23,7 +20,7 @@ export const noNonSerializableParams = createRule({
     docs: {
       description:
         'Params for useFetch/usePaginate/useQuery must be serializable. Functions and Symbol break hashQueryKey at runtime.',
-      recommended: 'recommended',
+      recommended: true,
     },
     schema: [],
     messages: {
