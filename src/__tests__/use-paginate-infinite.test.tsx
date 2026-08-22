@@ -4,11 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiMutation, apiPaginate } from '../index';
 import { configureApiClient } from '../config';
-import {
-  ApiClientProvider,
-  QueryClient,
-  setQueryClient,
-} from '../query';
+import { ApiClientProvider, QueryClient, setQueryClient } from '../query';
 import type { IHttpClient, UsePaginateResult } from '../types';
 
 type Item = { id: number };
@@ -146,11 +142,13 @@ describe('usePaginate mode: infinite', () => {
 
   it('getItemKey дедуплицирует одинаковые элементы между страницами', async () => {
     // Бэк отдаёт page 1: [{id:1},{id:2}], page 2: [{id:2},{id:3}] — id:2 повтор.
-    const get = vi.fn().mockImplementation((_u, cfg: { params: { page: number } }) => {
-      if (cfg.params.page === 1)
-        return Promise.resolve({ data: [{ id: 1 }, { id: 2 }], total: 6 });
-      return Promise.resolve({ data: [{ id: 2 }, { id: 3 }], total: 6 });
-    });
+    const get = vi
+      .fn()
+      .mockImplementation((_u, cfg: { params: { page: number } }) => {
+        if (cfg.params.page === 1)
+          return Promise.resolve({ data: [{ id: 1 }, { id: 2 }], total: 6 });
+        return Promise.resolve({ data: [{ id: 2 }, { id: 3 }], total: 6 });
+      });
     configureApiClient({ httpClient: makeHttpClient(get) });
     const api = apiPaginate<ListResponse, Item[]>('/dup');
 
@@ -325,5 +323,46 @@ describe('usePaginate mode: infinite', () => {
     });
     await waitFor(() => expect(snap?.data.length).toBe(2));
     expect(snap?.currentPage).toBe(1);
+  });
+
+  it('reset() СТОЯЧИ на першій сторінці (без попереднього fetchNextPage) не орфанує підписку', async () => {
+    // На відміну від сусіднього тесту, тут НЕМАЄ fetchNextPage() перед
+    // reset() — subscribedPagesKey лишається "1" по обидва боки виклику,
+    // тож ререндер (у сусідньому тесті) спрацьовує лише тому, що
+    // "1,2" → "1" випадково змінює ключ залежності. Це найпоширеніший
+    // реальний випадок: useFocusEffect(() => reset()) при поверненні на
+    // екран списку, коли користувач не встиг догортати до другої сторінки.
+    const get = makePagedGet();
+    configureApiClient({ httpClient: makeHttpClient(get) });
+    const api = apiPaginate<ListResponse, Item[]>('/reset-page1');
+
+    let snap: UsePaginateResult<Item[]> | null = null;
+    function Probe() {
+      snap = api.usePaginate(undefined, { initialLimit: 2, mode: 'infinite' });
+      return null;
+    }
+    withProvider(createElement(Probe), client);
+    await waitFor(() => expect(snap?.data.length).toBe(2));
+
+    const entryBefore = [...client.cache._debugEntries().values()].find(e =>
+      JSON.stringify(e.key).includes('"page":1'),
+    );
+    expect(entryBefore?.subscribers.size).toBe(1);
+
+    act(() => {
+      snap!.reset();
+    });
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+
+    const entryAfter = [...client.cache._debugEntries().values()].find(e =>
+      JSON.stringify(e.key).includes('"page":1'),
+    );
+
+    // reset(), що видаляє й перестворює запис (cache.remove() + fetch()),
+    // дає ІНШИЙ обʼєкт із порожньою підпискою — і майбутній notify() на
+    // цьому записі вже нікого не сповістить. Запис має лишитись ТИМ САМИМ
+    // обʼєктом, з тим самим підписником.
+    expect(entryAfter).toBe(entryBefore);
+    expect(entryAfter?.subscribers.size).toBe(1);
   });
 });

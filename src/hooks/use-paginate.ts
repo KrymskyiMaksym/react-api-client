@@ -44,7 +44,7 @@ export function createUsePaginate<
       enabled = true,
       initialPage = 1,
       initialLimit = 20,
-      staleTime = isConfigured() ? getConfig().defaultStaleTime ?? 0 : 0,
+      staleTime = isConfigured() ? (getConfig().defaultStaleTime ?? 0) : 0,
       gcTime,
       keepPreviousData = false,
       queryKey: customKey,
@@ -284,9 +284,7 @@ export function createUsePaginate<
 
     const lastSelectedRef = useRef<TSelected | null>(null);
     const data: TSelected = useMemo(() => {
-      const next = select
-        ? select(rawData)
-        : (rawData as unknown as TSelected);
+      const next = select ? select(rawData) : (rawData as unknown as TSelected);
       const prev = lastSelectedRef.current;
       const isEqual = selectIsEqual ?? Object.is;
       if (prev !== null && isEqual(prev, next)) return prev;
@@ -299,12 +297,14 @@ export function createUsePaginate<
         ? totalExtractor(effectiveResult as ResponseType)
         : null;
     const total = totalCount;
-    const totalPages = totalCount !== null ? Math.ceil(totalCount / limit) : null;
+    const totalPages =
+      totalCount !== null ? Math.ceil(totalCount / limit) : null;
     const hasNextPage = totalPages !== null && currentPage < totalPages;
     const hasPreviousPage = !isInfinite && currentPage > 1;
 
     const status = currentState?.status ?? 'idle';
-    const isLoading = status === 'loading' && !hasFetchedData && !usingPlaceholder;
+    const isLoading =
+      status === 'loading' && !hasFetchedData && !usingPlaceholder;
 
     const fetchNextPage = useCallback(async () => {
       if (!hasNextPage) return;
@@ -326,7 +326,15 @@ export function createUsePaginate<
         pageQueryFn(currentPage + 1),
         { staleTime, gcTime },
       );
-    }, [hasNextPage, currentPage, cache, pageKey, pageQueryFn, staleTime, gcTime]);
+    }, [
+      hasNextPage,
+      currentPage,
+      cache,
+      pageKey,
+      pageQueryFn,
+      staleTime,
+      gcTime,
+    ]);
 
     const refetch = useCallback(async () => {
       if (isInfinite) {
@@ -358,11 +366,19 @@ export function createUsePaginate<
     ]);
 
     const reset = useCallback(() => {
-      // Удаляем все страницы текущего префикса.
-      cache.remove((k: QueryKey) => {
+      // Помечаем все страницы текущего префикса как stale — НЕ cache.remove():
+      // remove() удаляет запись из Map, и ensureEntry() при следующем fetch()
+      // создаст НОВЫЙ объект записи с пустыми subscribers, осиротив текущую
+      // подписку компонента (она указывает на конкретный объект entry, а не
+      // переразрешается по ключу). invalidate() мутирует существующий объект
+      // на месте — подписка переживает reset() даже когда ключ (params и
+      // номер страницы) не меняется, что как раз самый частый случай
+      // (например useFocusEffect(() => reset()) при возврате на экран).
+      cache.invalidate((k: QueryKey) => {
         if (k.length < keyPrefix.length) return false;
         for (let i = 0; i < keyPrefix.length; i++) {
-          if (hashQueryKey([k[i]]) !== hashQueryKey([keyPrefix[i]])) return false;
+          if (hashQueryKey([k[i]]) !== hashQueryKey([keyPrefix[i]]))
+            return false;
         }
         return true;
       });
