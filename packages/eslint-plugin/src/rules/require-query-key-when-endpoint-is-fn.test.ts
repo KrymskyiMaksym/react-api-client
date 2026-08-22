@@ -1,3 +1,4 @@
+import * as parser from '@typescript-eslint/parser';
 import { RuleTester } from '@typescript-eslint/rule-tester';
 import { afterAll, describe, it } from 'vitest';
 
@@ -9,7 +10,7 @@ RuleTester.itOnly = it.only;
 RuleTester.describe = describe;
 
 const ruleTester = new RuleTester({
-  parser: require.resolve('@typescript-eslint/parser'),
+  languageOptions: { parser },
 });
 
 ruleTester.run(

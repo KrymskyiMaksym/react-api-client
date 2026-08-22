@@ -7,6 +7,6 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
-  external: ['eslint', '@typescript-eslint/utils'],
+  external: ['eslint', '@typescript-eslint/utils', 'ts-api-utils', 'typescript'],
   treeshake: true,
 });
