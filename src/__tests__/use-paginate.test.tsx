@@ -1,5 +1,5 @@
 import { act, render, waitFor } from '@testing-library/react';
-import { createElement, type ReactNode } from 'react';
+import { createElement, type ReactNode, useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import apiClient, { apiMutation, apiPaginate } from '../index';
@@ -135,6 +135,41 @@ describe('usePaginate (phase 4)', () => {
       mutateFn!();
     });
     await waitFor(() => expect(get).toHaveBeenCalledTimes(3));
+  });
+
+  it('зміна params у режимі page — компонент отримує нові дані на тій самій сторінці', async () => {
+    const get = vi
+      .fn()
+      .mockImplementation(
+        (_url: string, cfg: { params: { page: number; q: string } }) =>
+          Promise.resolve({
+            data: [{ id: cfg.params.q === 'a' ? 1 : 2 }],
+            total: 1,
+          } as ListResponse),
+      );
+    configureApiClient({ httpClient: makeHttpClient(get) });
+    const api = apiPaginate<ListResponse, { id: number }[], { q: string }>(
+      '/search',
+    );
+
+    let snapshot: UsePaginateResult<{ id: number }[]> | null = null;
+    let setQ: ((q: string) => void) | null = null;
+    function Probe() {
+      const [q, sq] = useState('a');
+      setQ = sq;
+      snapshot = api.usePaginate({ q }, { initialLimit: 10 });
+      return null;
+    }
+    withProvider(createElement(Probe), client);
+
+    await waitFor(() => expect(snapshot?.data[0]?.id).toBe(1));
+
+    act(() => {
+      setQ!('b');
+    });
+
+    // currentPage лишается 1 по обидва боки — без фіксу завис би назавжди.
+    await waitFor(() => expect(snapshot?.data[0]?.id).toBe(2));
   });
 
   it('prefetchNextPage кладёт страницу в кэш не меняя currentPage', async () => {

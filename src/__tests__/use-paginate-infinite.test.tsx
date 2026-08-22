@@ -101,6 +101,49 @@ describe('usePaginate mode: infinite', () => {
     await waitFor(() => expect(snap?.data.length).toBe(2));
   });
 
+  it('зміна params ЛИШЕ СТОЯЧИ на першій сторінці — підписка перевʼязується на новий запис кешу (без проміжного fetchNextPage)', async () => {
+    // Це той самий сценарій, що й у сусідньому тесті ('смена params
+    // очищает аккумулятор...'), але БЕЗ проміжного fetchNextPage — тож
+    // subscribedPagesKey лишається "1" по обидва боки зміни params.
+    // Наскрізна перевірка через `data.length` тут НЕ підходить: у
+    // infinite-режимі виклик `setLoadedPages([initialPage])` у ефекті
+    // зміни params сам по собі є новим масивом (інша ідентичність), і
+    // це змушує React повторно виконати рендер-функцію навіть коли
+    // підписка лишається прив'язаною до старого запису кешу — тобто
+    // компонент випадково отримує свіжі дані попри зламану підписку
+    // (те саме маскування, від якого застерігає ТЗ, тільки інший його
+    // прояв). Тому перевіряємо підписку напряму через `_debugEntries()`.
+    const get = makePagedGet();
+    configureApiClient({ httpClient: makeHttpClient(get) });
+    const api = apiPaginate<ListResponse, Item[], { q: string }>('/search-sub');
+
+    let setQ: ((q: string) => void) | null = null;
+    function Probe() {
+      const [q, sq] = useState('a');
+      setQ = sq;
+      api.usePaginate({ q }, { initialLimit: 2, mode: 'infinite' });
+      return null;
+    }
+    withProvider(createElement(Probe), client);
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      setQ!('b');
+    });
+    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+
+    const entries = [...client.cache._debugEntries().values()];
+    const oldEntry = entries.find(e => JSON.stringify(e.key).includes('"a"'));
+    const newEntry = entries.find(e => JSON.stringify(e.key).includes('"b"'));
+
+    expect(newEntry).toBeDefined();
+    // Підписка мала перев'язатись на новий запис (під новими params) і
+    // відв'язатись від старого — інакше notify() на новому записі не
+    // матиме жодного підписника, і компонент не отримає ререндер.
+    expect(newEntry?.subscribers.size).toBe(1);
+    expect(oldEntry?.subscribers.size).toBe(0);
+  });
+
   it('getItemKey дедуплицирует одинаковые элементы между страницами', async () => {
     // Бэк отдаёт page 1: [{id:1},{id:2}], page 2: [{id:2},{id:3}] — id:2 повтор.
     const get = vi.fn().mockImplementation((_u, cfg: { params: { page: number } }) => {

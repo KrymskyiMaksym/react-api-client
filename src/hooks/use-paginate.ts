@@ -129,6 +129,8 @@ export function createUsePaginate<
     // в infinite — на все загруженные (любая инвалидация → ререндер).
     const [, forceRender] = useState(0);
     const rerender = useCallback(() => forceRender(v => v + 1), []);
+    const keyPrefixHash = useMemo(() => hashQueryKey(keyPrefix), [keyPrefix]);
+
     const subscribedPages = isInfinite ? loadedPages : [currentPage];
     const subscribedPagesKey = subscribedPages.join(',');
     useEffect(() => {
@@ -140,7 +142,7 @@ export function createUsePaginate<
         for (const u of unsubs) u();
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cache, enabled, subscribedPagesKey, rerender]);
+    }, [cache, enabled, subscribedPagesKey, keyPrefixHash, rerender]);
 
     const previousPageKeyRef = useRef<QueryKey | null>(null);
 
